@@ -95,10 +95,6 @@ export function ProcessoDetailModal({ processo, onClose, onChanged, onOpenProces
           <CampoTextarea valor={proc.objeto} onSave={(v) => salvarCampo({ objeto: v })} placeholder="Descreva o objeto do processo…" />
         </Secao>
 
-        <Secao titulo="Observação">
-          <CampoTextarea valor={proc.observacao} onSave={(v) => salvarCampo({ observacao: v })} placeholder="Anotações livres sobre o processo…" />
-        </Secao>
-
         {/* 3) Apensos (somente principal) */}
         {ehPrincipal && (
           <Secao titulo="Processos apensos">
