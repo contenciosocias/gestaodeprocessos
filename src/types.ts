@@ -24,9 +24,6 @@ export interface Processo {
   objeto: string | null
   rotulo: string | null
   observacao: string | null
-  // Nomes das partes em cada polo (manuais; alimentam o cabeçalho do e-mail de disparo).
-  polo_ativo: string | null
-  polo_passivo: string | null
   created_at: string
 }
 

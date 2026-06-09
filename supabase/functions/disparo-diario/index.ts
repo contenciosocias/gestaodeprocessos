@@ -38,8 +38,8 @@ interface ItemNotificar {
   data_disponibilizacao: string | null
   link_certidao: string | null
   numero_cnj: string
-  polo_ativo: string | null
-  polo_passivo: string | null
+  posicao_cias: string | null
+  rotulo: string | null
 }
 
 Deno.serve(async (req) => {
@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
       .from('intimacoes')
       .select(
         'id, numero_processo, sigla_tribunal, nome_orgao, teor, data_disponibilizacao, link_certidao, ' +
-          'processo:processos!inner(perfil, numero_cnj, polo_ativo, polo_passivo)',
+          'processo:processos!inner(perfil, numero_cnj, posicao_cias, rotulo)',
       )
       .is('notificada_em', null)
       .order('data_disponibilizacao', { ascending: false })
@@ -117,8 +117,8 @@ Deno.serve(async (req) => {
         data_disponibilizacao: row.data_disponibilizacao ?? null,
         link_certidao: row.link_certidao ?? null,
         numero_cnj: proc?.numero_cnj ?? '',
-        polo_ativo: proc?.polo_ativo ?? null,
-        polo_passivo: proc?.polo_passivo ?? null,
+        posicao_cias: proc?.posicao_cias ?? null,
+        rotulo: proc?.rotulo ?? null,
       })
     }
 
@@ -303,18 +303,29 @@ function linhaMeta(rotulo: string, valor: string): string {
   )
 }
 
+/**
+ * Cabeçalho derivado: a posição do CIAS (posicao_cias) define os polos —
+ *   ativo   => CIAS v. [parte contrária]
+ *   passivo => [parte contrária] v. CIAS
+ *   outro   => CIAS · [parte contrária]
+ * Sem parte contrária (rotulo) cadastrada, usa o número do processo.
+ */
+function cabecalhoPartes(it: ItemNotificar): { html: string; ehPartes: boolean } {
+  const contraria = (it.rotulo ?? '').trim()
+  const numero = it.numero_processo || it.numero_cnj || '—'
+  if (!contraria) return { html: esc(numero), ehPartes: false }
+  const vs = `<span style="color:${C.texto3};font-weight:400;font-style:italic;">v.</span>`
+  const ponto = `<span style="color:${C.texto3};font-weight:400;">·</span>`
+  if (it.posicao_cias === 'ativo') return { html: `CIAS ${vs} ${esc(contraria)}`, ehPartes: true }
+  if (it.posicao_cias === 'passivo') return { html: `${esc(contraria)} ${vs} CIAS`, ehPartes: true }
+  return { html: `CIAS ${ponto} ${esc(contraria)}`, ehPartes: true }
+}
+
 /** Um bloco por intimação, separado por filete fino (visual de lista, não de cartão). */
 function blocoIntimacao(it: ItemNotificar, primeiro: boolean): string {
-  const ativo = (it.polo_ativo ?? '').trim()
-  const passivo = (it.polo_passivo ?? '').trim()
   const numero = it.numero_processo || it.numero_cnj || '—'
-  const temPartes = Boolean(ativo && passivo)
-
-  // Cabeçalho: "[ativo] v. [passivo]"; se faltar um polo, usa o número do processo.
-  const cabecalho = temPartes
-    ? `${esc(ativo)} <span style="color:${C.texto3};font-weight:400;font-style:italic;">v.</span> ${esc(passivo)}`
-    : esc(numero)
-  const subnumero = temPartes
+  const { html: cabecalho, ehPartes } = cabecalhoPartes(it)
+  const subnumero = ehPartes
     ? `<div style="font-size:12px;color:${C.texto3};margin-top:5px;letter-spacing:.2px;">Processo nº ${esc(numero)}</div>`
     : ''
 

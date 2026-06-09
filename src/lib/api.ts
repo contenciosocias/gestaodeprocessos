@@ -176,8 +176,6 @@ export async function updateProcesso(
       | 'objeto'
       | 'rotulo'
       | 'observacao'
-      | 'polo_ativo'
-      | 'polo_passivo'
     >
   >,
 ): Promise<void> {

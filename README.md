@@ -86,7 +86,8 @@ sem notificações. Front-end estático (GitHub Pages) + Supabase (Postgres + Ed
     ├── migrations/
     │   ├── 0001_init.sql      # tabelas, enums, constraints, RLS, defaults
     │   ├── 0002_data_ajuizamento.sql
-    │   └── 0003_disparo_diario.sql  # notificada_em, polo_ativo/passivo, destinatarios_disparo, config do disparo
+    │   ├── 0003_disparo_diario.sql  # notificada_em, destinatarios_disparo, config do disparo
+    │   └── 0004_remove_polo.sql     # remove polo_ativo/passivo (cabeçalho do e-mail vira derivado)
     └── functions/
         ├── _shared/cors.ts
         ├── _shared/sync.ts    # sincronização DJEn (compartilhada pelas 2 funções abaixo)
