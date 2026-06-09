@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, Loader2, Plus, Trash2 } from 'lucide-react'
 import type { Perfil, Processo } from '../types'
-import { CnjDuplicadoError, createPrincipal, deleteProcesso, listApensos, listPrincipais } from '../lib/api'
-import { PoloText } from './Badge'
+import { CnjDuplicadoError, createPrincipal, deleteProcesso, listApensos, listPrazosFatais, listPrincipais } from '../lib/api'
+import { PoloText, PrazoFatalBadge } from './Badge'
 import { PageHeader } from './PageHeader'
 import { ProcessoDetailModal } from './ProcessoDetailModal'
 
+// Prazo fatal em aberto, por processo (próprio) e por principal (rollup principal+apensos).
+type PrazosMapa = { porProcesso: Record<string, string>; porPrincipal: Record<string, string> }
+
 export function ProcessosTab({ perfil }: { perfil: Perfil }) {
   const [principais, setPrincipais] = useState<Processo[]>([])
+  const [prazos, setPrazos] = useState<PrazosMapa>({ porProcesso: {}, porPrincipal: {} })
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
 
@@ -23,8 +27,11 @@ export function ProcessosTab({ perfil }: { perfil: Perfil }) {
   const carregarPrincipais = useCallback(() => {
     setCarregando(true)
     setErro(null)
-    listPrincipais(perfil)
-      .then(setPrincipais)
+    Promise.all([listPrincipais(perfil), listPrazosFatais(perfil)])
+      .then(([lista, mapas]) => {
+        setPrincipais(lista)
+        setPrazos(mapas)
+      })
       .catch((e) => setErro(String(e?.message ?? e)))
       .finally(() => setCarregando(false))
   }, [perfil])
@@ -60,6 +67,20 @@ export function ProcessosTab({ perfil }: { perfil: Perfil }) {
     carregarPrincipais()
     for (const id of expandidos) void carregarApensos(id)
   }, [carregarPrincipais, carregarApensos, expandidos])
+
+  // Processos com prazo fatal em aberto vêm primeiro, do vencimento mais próximo ao
+  // mais remoto (rollup principal+apensos). Os demais mantêm a ordem da API
+  // (data de ajuizamento, mais novo -> mais antigo).
+  const principaisOrdenados = useMemo(() => {
+    const comPrazo: Processo[] = []
+    const semPrazo: Processo[] = []
+    for (const p of principais) {
+      if (prazos.porPrincipal[p.id]) comPrazo.push(p)
+      else semPrazo.push(p)
+    }
+    comPrazo.sort((a, b) => prazos.porPrincipal[a.id].localeCompare(prazos.porPrincipal[b.id]))
+    return [...comPrazo, ...semPrazo]
+  }, [principais, prazos])
 
   async function excluir(p: Processo) {
     const ehPrincipal = p.processo_principal_id === null
@@ -128,11 +149,12 @@ export function ProcessosTab({ perfil }: { perfil: Perfil }) {
         <Estado texto="Nenhum processo cadastrado neste perfil. Cadastre o primeiro acima." />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-cias-borda bg-cias-base shadow-sm">
-          <table className="w-full min-w-[900px] border-collapse text-sm">
+          <table className="w-full min-w-[1000px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-cias-borda bg-cias-superficie/70 text-left text-[11px] font-semibold uppercase tracking-wider text-cias-texto3">
                 <th className="w-10 px-2 py-3"></th>
                 <th className="px-4 py-3">Processo</th>
+                <th className="px-4 py-3">Prazo fatal</th>
                 <th className="px-4 py-3">Classe</th>
                 <th className="px-4 py-3">Parte contrária</th>
                 <th className="px-4 py-3">Polo</th>
@@ -140,7 +162,7 @@ export function ProcessosTab({ perfil }: { perfil: Perfil }) {
               </tr>
             </thead>
             <tbody>
-              {principais.map((p) => {
+              {principaisOrdenados.map((p) => {
                 const aberto = expandidos.has(p.id)
                 const filhos = apensos[p.id]
                 return (
@@ -149,6 +171,7 @@ export function ProcessosTab({ perfil }: { perfil: Perfil }) {
                     principal={p}
                     aberto={aberto}
                     filhos={filhos}
+                    prazos={prazos}
                     onToggle={() => toggleExpand(p.id)}
                     onAbrir={setProcessoAberto}
                     onExcluir={excluir}
@@ -180,6 +203,7 @@ function FragmentRow({
   principal,
   aberto,
   filhos,
+  prazos,
   onToggle,
   onAbrir,
   onExcluir,
@@ -187,6 +211,7 @@ function FragmentRow({
   principal: Processo
   aberto: boolean
   filhos: Processo[] | undefined
+  prazos: PrazosMapa
   onToggle: () => void
   onAbrir: (p: Processo) => void
   onExcluir: (p: Processo) => void
@@ -204,6 +229,9 @@ function FragmentRow({
           </button>
         </td>
         <td className="px-4 py-3 font-medium text-cias-texto">{principal.numero_cnj}</td>
+        <td className="px-4 py-3">
+          <PrazoFatalBadge prazo={prazos.porPrincipal[principal.id] ?? null} />
+        </td>
         <td className="px-4 py-3 text-cias-texto2">{principal.classe || '—'}</td>
         <td className="px-4 py-3 text-cias-texto2">{principal.rotulo || '—'}</td>
         <td className="px-4 py-3"><PoloText valor={principal.posicao_cias} /></td>
@@ -230,7 +258,7 @@ function FragmentRow({
       {aberto && filhos === undefined && (
         <tr className="bg-cias-superficie2">
           <td></td>
-          <td colSpan={5} className="px-4 py-3">
+          <td colSpan={6} className="px-4 py-3">
             <div className="flex items-center gap-2 text-xs text-cias-texto2">
               <Loader2 size={13} className="animate-spin" /> Carregando apensos…
             </div>
@@ -241,7 +269,7 @@ function FragmentRow({
       {aberto && filhos && filhos.length === 0 && (
         <tr className="bg-cias-superficie2">
           <td></td>
-          <td colSpan={5} className="px-4 py-3 text-xs text-cias-texto2">
+          <td colSpan={6} className="px-4 py-3 text-xs text-cias-texto2">
             Nenhum apenso. Adicione apensos pela janela de detalhes.
           </td>
         </tr>
@@ -254,6 +282,9 @@ function FragmentRow({
           <tr key={a.id} className="border-b border-cias-borda/70 bg-cias-superficie2 hover:bg-cias-superficie2">
             <td className="px-2 py-3"></td>
             <td className="px-4 py-3 font-medium text-cias-texto">{a.numero_cnj}</td>
+            <td className="px-4 py-3">
+              <PrazoFatalBadge prazo={prazos.porProcesso[a.id] ?? null} />
+            </td>
             <td className="px-4 py-3 text-cias-texto2">{a.classe || '—'}</td>
             <td className="px-4 py-3 text-cias-texto2">{a.rotulo || '—'}</td>
             <td className="px-4 py-3">

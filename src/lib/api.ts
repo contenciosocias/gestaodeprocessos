@@ -234,6 +234,55 @@ export async function listPrazosEmAberto(processoIds: string[]): Promise<Intimac
   return data as Intimacao[]
 }
 
+/**
+ * Prazo fatal "em aberto" mais próximo (menor data) por processo, para um perfil.
+ * Considera só intimações com prazo_fatal preenchido e status != 'providenciada'
+ * (mesma regra de listPrazosEmAberto). Devolve dois mapas:
+ *  - porProcesso:  id do processo  -> data do seu prazo próprio mais próximo
+ *  - porPrincipal: id do principal -> menor prazo entre o principal e seus apensos
+ *    (rollup; usado para ordenar a lista e sinalizar urgência na linha do principal)
+ * Datas em 'yyyy-mm-dd' (comparação lexicográfica = cronológica).
+ */
+export async function listPrazosFatais(
+  perfil: Perfil,
+): Promise<{ porProcesso: Record<string, string>; porPrincipal: Record<string, string> }> {
+  const { data: procs, error: e1 } = await supabase
+    .from('processos')
+    .select('id, processo_principal_id')
+    .eq('perfil', perfil)
+  if (e1) throw e1
+  const linhas = (procs ?? []) as { id: string; processo_principal_id: string | null }[]
+  if (linhas.length === 0) return { porProcesso: {}, porPrincipal: {} }
+
+  const { data: ints, error: e2 } = await supabase
+    .from('intimacoes')
+    .select('processo_id, prazo_fatal')
+    .in(
+      'processo_id',
+      linhas.map((p) => p.id),
+    )
+    .not('prazo_fatal', 'is', null)
+    .neq('status', 'providenciada')
+  if (e2) throw e2
+
+  const porProcesso: Record<string, string> = {}
+  for (const it of (ints ?? []) as { processo_id: string; prazo_fatal: string }[]) {
+    const atual = porProcesso[it.processo_id]
+    if (!atual || it.prazo_fatal < atual) porProcesso[it.processo_id] = it.prazo_fatal
+  }
+
+  const porPrincipal: Record<string, string> = {}
+  for (const p of linhas) {
+    const prazo = porProcesso[p.id]
+    if (!prazo) continue
+    const chave = p.processo_principal_id ?? p.id // apenso herda o principal
+    const atual = porPrincipal[chave]
+    if (!atual || prazo < atual) porPrincipal[chave] = prazo
+  }
+
+  return { porProcesso, porPrincipal }
+}
+
 // ---------------------------------------------------------------------------
 // Movimentações (histórico manual)
 // ---------------------------------------------------------------------------
