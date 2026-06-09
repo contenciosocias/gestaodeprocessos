@@ -1,0 +1,13 @@
+COLOQUE AQUI O LOGO DO CIAS.
+
+Salve o arquivo do logo nesta pasta (public/) com o nome exato:
+
+    public/logo-cias.png
+
+O cabeçalho carrega esse arquivo automaticamente. Enquanto ele não existir, o
+cabeçalho mostra um logotipo provisório ("CIAS").
+
+Depois de adicionar o logo, ajuste também os tons de vermelho/laranja em
+tailwind.config.js para os valores EXATOS extraídos da arte (use um conta-gotas).
+
+Pode apagar este arquivo .txt depois.

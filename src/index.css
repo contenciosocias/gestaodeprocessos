@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply antialiased;
+  }
+  body {
+    @apply bg-cias-superficie text-cias-texto font-sans;
+  }
+  /* Foco visível e discreto, no acento da marca. */
+  :where(button, a, input, select, textarea):focus-visible {
+    @apply outline-none ring-2 ring-cias-laranja/60 ring-offset-1 ring-offset-cias-base;
+  }
+}

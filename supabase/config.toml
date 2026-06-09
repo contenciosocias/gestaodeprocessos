@@ -1,0 +1,12 @@
+# Configuração do Supabase CLI.
+# `project_id` é só um rótulo local; o vínculo real é feito com `supabase link`.
+project_id = "contencioso-cias"
+
+# As Edge Functions são chamadas SEM login de usuário (apenas com a anon key).
+# verify_jwt = false libera a invocação anônima. PROVISÓRIO — endurecer com
+# Supabase Auth quando houver login (ver README, seção "Segurança").
+[functions.sync-intimacoes]
+verify_jwt = false
+
+[functions.consulta-datajud]
+verify_jwt = false

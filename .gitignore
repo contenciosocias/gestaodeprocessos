@@ -1,0 +1,34 @@
+# dependencies
+node_modules
+.pnp
+.pnp.js
+
+# build
+dist
+dist-ssr
+*.local
+*.tsbuildinfo
+
+# ferramentas locais (Claude Code / preview)
+.claude/
+
+# env (NUNCA commitar segredos do back-end / service role)
+.env
+.env.*
+!.env.example
+
+# editor / SO
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Supabase CLI (local)
+supabase/.branches
+supabase/.temp
