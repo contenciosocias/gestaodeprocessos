@@ -68,6 +68,13 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
     }
   }
 
+  // Dois grupos derivados da mesma lista. "Recentes" = status 'nova';
+  // "Tratadas" = 'lida'/'providenciada'. filter() preserva a ordem da API
+  // (mais novo -> mais antigo), então a ordem se mantém dentro de cada grupo.
+  // Como derivam do array único, mudar o status no card reflui o item de grupo.
+  const recentes = intimacoes.filter((i) => i.status === 'nova')
+  const tratadas = intimacoes.filter((i) => i.status !== 'nova')
+
   return (
     <>
       <PageHeader titulo="Intimações" perfil={perfil} subtitulo="Apenas dos últimos 90 dias" />
@@ -78,13 +85,51 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
       ) : intimacoes.length === 0 ? (
         <EstadoCentral texto="Nenhuma intimação ainda. Cadastre OABs e processos; as intimações aparecem após a sincronização." />
       ) : (
-        <div className="space-y-3">
-          {intimacoes.map((i) => (
-            <IntimacaoCard key={i.id} intimacao={i} onSalvar={salvar} />
-          ))}
+        <div className="space-y-8">
+          <GrupoSecao titulo="Recentes" itens={recentes} onSalvar={salvar} vazio="Nenhuma intimação nova." />
+          <GrupoSecao
+            titulo="Tratadas"
+            itens={tratadas}
+            onSalvar={salvar}
+            vazio="Nenhuma intimação tratada (lida ou providenciada)."
+          />
         </div>
       )}
     </>
+  )
+}
+
+// Cabeçalho de grupo (título + contador + linha) seguido dos cards do grupo.
+function GrupoSecao({
+  titulo,
+  itens,
+  onSalvar,
+  vazio,
+}: {
+  titulo: string
+  itens: IntimacaoComProcesso[]
+  onSalvar: (id: string, patch: Patch) => void
+  vazio: string
+}) {
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center gap-3">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-cias-texto">{titulo}</h2>
+        <span className="rounded-full border border-cias-borda bg-cias-superficie px-2 py-0.5 text-xs font-semibold text-cias-texto2">
+          {itens.length}
+        </span>
+        <span className="h-px flex-1 bg-cias-borda" />
+      </div>
+      {itens.length === 0 ? (
+        <p className="px-1 text-sm text-cias-texto3">{vazio}</p>
+      ) : (
+        <div className="space-y-3">
+          {itens.map((i) => (
+            <IntimacaoCard key={i.id} intimacao={i} onSalvar={onSalvar} />
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 
