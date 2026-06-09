@@ -20,8 +20,9 @@ export default {
           texto: '#1A1A1A', // texto principal
           texto2: '#6B6B6B', // texto secundário
           texto3: '#9C9C96', // texto auxiliar (muted)
-          sucesso: '#2E7D32', // sucesso discreto (status Providenciada)
+          sucesso: '#2E7D32', // sucesso discreto (status Providenciada / polo ativo)
           sucessoBg: '#EAF3EA',
+          roxo: '#6D28D9', // polo "interessado"
         },
       },
       fontFamily: {

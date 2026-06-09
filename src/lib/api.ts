@@ -63,6 +63,7 @@ export async function listPrincipais(perfil: Perfil): Promise<Processo[]> {
     .select('*')
     .eq('perfil', perfil)
     .is('processo_principal_id', null)
+    .order('data_ajuizamento', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
   if (error) throw error
   return data as Processo[]
@@ -73,7 +74,8 @@ export async function listApensos(principalId: string): Promise<Processo[]> {
     .from('processos')
     .select('*')
     .eq('processo_principal_id', principalId)
-    .order('created_at', { ascending: true })
+    .order('data_ajuizamento', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
   if (error) throw error
   return data as Processo[]
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ChevronRight, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Modal } from './Modal'
-import { Tag } from './Badge'
+import { POLO_TEXT_CLASS, Tag } from './Badge'
 import type { Intimacao, Movimentacao, Processo } from '../types'
 import {
   CnjDuplicadoError,
@@ -85,8 +85,8 @@ export function ProcessoDetailModal({ processo, onClose, onChanged, onOpenProces
             <CampoTexto rotulo="Classe" valor={proc.classe} onSave={(v) => salvarCampo({ classe: v })} placeholder="(preenchido pelo Datajud ou à mão)" />
             <CampoTexto rotulo="Órgão julgador" valor={proc.orgao_julgador} onSave={(v) => salvarCampo({ orgao_julgador: v })} placeholder="(preenchido pelo Datajud ou à mão)" />
             <CampoData rotulo="Data de ajuizamento" valor={proc.data_ajuizamento} onSave={(v) => salvarCampo({ data_ajuizamento: v })} />
-            <CampoTexto rotulo="Posição do CIAS" valor={proc.posicao_cias} onSave={(v) => salvarCampo({ posicao_cias: v })} placeholder="ex.: réu, agravante…" />
-            <CampoTexto rotulo="Rótulo (parte adversa)" valor={proc.rotulo} onSave={(v) => salvarCampo({ rotulo: v })} placeholder="ex.: nome da parte adversa" />
+            <CampoPolo valor={proc.posicao_cias} onSave={(v) => salvarCampo({ posicao_cias: v })} />
+            <CampoTexto rotulo="Parte contrária" valor={proc.rotulo} onSave={(v) => salvarCampo({ rotulo: v })} placeholder="nome da parte contrária" />
           </div>
         </Secao>
 
@@ -417,6 +417,27 @@ function CampoTexto({
         }}
         className="w-full rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"
       />
+    </label>
+  )
+}
+
+function CampoPolo({ valor, onSave }: { valor: string | null; onSave: (v: string | null) => void }) {
+  const cls = valor ? (POLO_TEXT_CLASS[valor] ?? 'text-cias-texto') : 'text-cias-texto2'
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs text-cias-texto2">Polo</span>
+      <select
+        value={valor ?? ''}
+        onChange={(e) => onSave(e.target.value || null)}
+        className={`w-full rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm font-bold ${cls}`}
+      >
+        <option value="" className="font-normal text-cias-texto2">
+          —
+        </option>
+        <option value="ativo" className="font-bold text-cias-sucesso">Ativo</option>
+        <option value="passivo" className="font-bold text-cias-laranja">Passivo</option>
+        <option value="interessado" className="font-bold text-cias-roxo">Interessado</option>
+      </select>
     </label>
   )
 }

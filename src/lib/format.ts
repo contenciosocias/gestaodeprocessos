@@ -27,8 +27,16 @@ export function classificarPrazo(iso: string | null | undefined): PrazoStatus | 
 }
 
 /** Trecho curto do teor para a lista. */
+/** Decodifica entidades HTML (ex.: &iacute; → í, &ccedil;&atilde;o → ção). */
+export function decodeHtmlEntities(s: string | null | undefined): string {
+  if (!s) return ''
+  const el = document.createElement('textarea')
+  el.innerHTML = s
+  return el.value
+}
+
 export function trecho(texto: string | null | undefined, max = 160): string {
   if (!texto) return '—'
-  const limpo = texto.replace(/\s+/g, ' ').trim()
+  const limpo = decodeHtmlEntities(texto).replace(/\s+/g, ' ').trim()
   return limpo.length > max ? limpo.slice(0, max).trimEnd() + '…' : limpo
 }

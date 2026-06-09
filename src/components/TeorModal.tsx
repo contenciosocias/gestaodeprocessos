@@ -1,7 +1,7 @@
 import { ExternalLink } from 'lucide-react'
 import { Modal } from './Modal'
 import type { IntimacaoComProcesso } from '../types'
-import { formatDateBR } from '../lib/format'
+import { decodeHtmlEntities, formatDateBR } from '../lib/format'
 
 export function TeorModal({ intimacao, onClose }: { intimacao: IntimacaoComProcesso | null; onClose: () => void }) {
   return (
@@ -19,7 +19,7 @@ export function TeorModal({ intimacao, onClose }: { intimacao: IntimacaoComProce
           <div>
             <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-cias-texto2">Teor</div>
             <div className="max-h-[50vh] overflow-y-auto whitespace-pre-wrap rounded-lg border border-cias-borda bg-cias-superficie p-4 text-sm leading-relaxed text-cias-texto">
-              {intimacao.teor || 'Sem teor disponível.'}
+              {decodeHtmlEntities(intimacao.teor) || 'Sem teor disponível.'}
             </div>
           </div>
 

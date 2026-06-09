@@ -21,6 +21,25 @@ export function StatusBadge({ status }: { status: StatusIntimacao }) {
   )
 }
 
+// Polo do CIAS no processo: ativo (verde), passivo (laranja), interessado (roxo).
+export const POLO_LABEL: Record<string, string> = {
+  ativo: 'Ativo',
+  passivo: 'Passivo',
+  interessado: 'Interessado',
+}
+export const POLO_TEXT_CLASS: Record<string, string> = {
+  ativo: 'text-cias-sucesso',
+  passivo: 'text-cias-laranja',
+  interessado: 'text-cias-roxo',
+}
+
+/** Exibe o polo como texto em negrito, colorido conforme o valor. */
+export function PoloText({ valor }: { valor: string | null }) {
+  if (!valor) return <span className="text-cias-texto2">—</span>
+  const cls = POLO_TEXT_CLASS[valor]
+  return <span className={`font-bold ${cls ?? 'text-cias-texto'}`}>{POLO_LABEL[valor] ?? valor}</span>
+}
+
 /** Etiqueta neutra para a classe de um apenso e afins. */
 export function Tag({ children }: { children: React.ReactNode }) {
   return (

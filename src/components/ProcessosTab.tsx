@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight, Loader2, Plus, Trash2 } from 'lucide-react'
 import type { Perfil, Processo } from '../types'
 import { CnjDuplicadoError, createPrincipal, deleteProcesso, listApensos, listPrincipais } from '../lib/api'
-import { Tag } from './Badge'
+import { PoloText, Tag } from './Badge'
 import { ProcessoDetailModal } from './ProcessoDetailModal'
 
 export function ProcessosTab({ perfil }: { perfil: Perfil }) {
@@ -136,8 +136,8 @@ export function ProcessosTab({ perfil }: { perfil: Perfil }) {
                 <th className="w-10 px-2 py-3"></th>
                 <th className="px-4 py-3">Processo</th>
                 <th className="px-4 py-3">Classe</th>
-                <th className="px-4 py-3">Órgão julgador</th>
-                <th className="px-4 py-3">Posição CIAS</th>
+                <th className="px-4 py-3">Parte contrária</th>
+                <th className="px-4 py-3">Polo</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -207,8 +207,8 @@ function FragmentRow({
         </td>
         <td className="px-4 py-3 font-medium text-cias-texto">{principal.numero_cnj}</td>
         <td className="px-4 py-3 text-cias-texto2">{principal.classe || '—'}</td>
-        <td className="px-4 py-3 text-cias-texto2">{principal.orgao_julgador || '—'}</td>
-        <td className="px-4 py-3 text-cias-texto2">{principal.posicao_cias || '—'}</td>
+        <td className="px-4 py-3 text-cias-texto2">{principal.rotulo || '—'}</td>
+        <td className="px-4 py-3"><PoloText valor={principal.posicao_cias} /></td>
         <td className="px-4 py-3">
           <div className="flex items-center justify-end gap-1">
             <button
@@ -246,6 +246,7 @@ function FragmentRow({
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium text-cias-texto">{a.numero_cnj}</span>
                       {a.classe && <Tag>{a.classe}</Tag>}
+                      {a.posicao_cias && <PoloText valor={a.posicao_cias} />}
                     </div>
                     <div className="flex items-center gap-1">
                       <button
