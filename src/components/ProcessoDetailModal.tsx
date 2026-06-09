@@ -249,23 +249,35 @@ function MovimentacoesSection({ processoId }: { processoId: string }) {
 
   async function adicionar() {
     if (descricao.trim() === '') return
-    await createMovimentacao({ processo_id: processoId, data, descricao })
-    setDescricao('')
-    setData(hojeISO())
-    recarregar()
+    try {
+      await createMovimentacao({ processo_id: processoId, data, descricao })
+      setDescricao('')
+      setData(hojeISO())
+      recarregar()
+    } catch (e) {
+      alert('Não foi possível salvar a movimentação: ' + String((e as Error)?.message ?? e))
+    }
   }
 
   async function salvarEdicao() {
     if (!editId) return
-    await updateMovimentacao(editId, { data: editData, descricao: editDescricao })
-    setEditId(null)
-    recarregar()
+    try {
+      await updateMovimentacao(editId, { data: editData, descricao: editDescricao })
+      setEditId(null)
+      recarregar()
+    } catch (e) {
+      alert('Não foi possível salvar a movimentação: ' + String((e as Error)?.message ?? e))
+    }
   }
 
   async function remover(id: string) {
     if (!confirm('Remover esta movimentação?')) return
-    await deleteMovimentacao(id)
-    recarregar()
+    try {
+      await deleteMovimentacao(id)
+      recarregar()
+    } catch (e) {
+      alert('Não foi possível remover a movimentação: ' + String((e as Error)?.message ?? e))
+    }
   }
 
   return (

@@ -62,15 +62,23 @@ function OabsBlock() {
 
   async function salvarEdicao() {
     if (!editId) return
-    await updateOab(editId, edit)
-    setEditId(null)
-    recarregar()
+    try {
+      await updateOab(editId, edit)
+      setEditId(null)
+      recarregar()
+    } catch (e) {
+      alert('Não foi possível salvar a OAB: ' + String((e as Error)?.message ?? e))
+    }
   }
 
   async function remover(id: string) {
     if (!confirm('Remover esta OAB do monitoramento?')) return
-    await deleteOab(id)
-    recarregar()
+    try {
+      await deleteOab(id)
+      recarregar()
+    } catch (e) {
+      alert('Não foi possível remover a OAB: ' + String((e as Error)?.message ?? e))
+    }
   }
 
   return (
@@ -178,6 +186,8 @@ function ApisBlock() {
         await setAppConfig(chave, valores[chave] ?? '')
       }
       setOk(true)
+    } catch (e) {
+      alert('Não foi possível salvar as configurações: ' + String((e as Error)?.message ?? e))
     } finally {
       setSalvando(false)
     }
