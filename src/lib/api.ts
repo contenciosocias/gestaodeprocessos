@@ -14,6 +14,7 @@ import type {
 } from '../types'
 
 const DEZ_MINUTOS_MS = 10 * 60 * 1000
+const JANELA_INTIMACOES_DIAS = 60 // a aba de Intimações mostra só os últimos 60 dias (por data de disponibilização)
 
 export class CnjDuplicadoError extends Error {
   constructor() {
@@ -196,10 +197,12 @@ export async function deleteProcesso(id: string): Promise<void> {
 // Intimações
 // ---------------------------------------------------------------------------
 export async function listIntimacoesByPerfil(perfil: Perfil): Promise<IntimacaoComProcesso[]> {
+  const desde = new Date(Date.now() - JANELA_INTIMACOES_DIAS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const { data, error } = await supabase
     .from('intimacoes')
     .select('*, processo:processos!inner(numero_cnj, perfil, classe, posicao_cias, rotulo)')
     .eq('processo.perfil', perfil)
+    .gte('data_disponibilizacao', desde)
     .order('data_disponibilizacao', { ascending: false })
     .order('created_at', { ascending: false })
   if (error) throw error
