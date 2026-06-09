@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Loader2, Plus, Trash2 } from 'lucide-react'
 import type { Perfil, Processo } from '../types'
 import { CnjDuplicadoError, createPrincipal, deleteProcesso, listApensos, listPrincipais } from '../lib/api'
 import { PoloText, Tag } from './Badge'
+import { PageHeader } from './PageHeader'
 import { ProcessoDetailModal } from './ProcessoDetailModal'
 
 export function ProcessosTab({ perfil }: { perfil: Perfil }) {
@@ -93,33 +94,30 @@ export function ProcessosTab({ perfil }: { perfil: Perfil }) {
 
   return (
     <div className="space-y-4">
-      {/* Cadastro de processo principal */}
-      <div className="rounded-xl border border-cias-borda bg-cias-base p-4 shadow-sm">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="flex-1 min-w-[18rem]">
-            <span className="mb-1 block text-xs font-medium text-cias-texto2">Cadastrar processo (número CNJ)</span>
+      <PageHeader
+        titulo="Processos"
+        perfil={perfil}
+        right={
+          <div className="flex items-center gap-2">
             <input
               value={novoCnj}
               onChange={(e) => setNovoCnj(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !salvando && novoCnj.trim() && cadastrar()}
-              placeholder="0000000-00.0000.0.00.0000"
-              className="w-full rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"
+              placeholder="Cadastrar processo (nº CNJ)"
+              className="w-72 rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"
             />
-          </label>
-          <button
-            onClick={cadastrar}
-            disabled={salvando || novoCnj.trim() === ''}
-            className="inline-flex items-center gap-2 rounded-lg bg-cias-vermelho px-4 py-2 text-sm font-semibold text-cias-base transition hover:bg-cias-vermelho/90 disabled:opacity-50"
-          >
-            {salvando ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-            {salvando ? 'Consultando Datajud…' : 'Cadastrar'}
-          </button>
-        </div>
-        {erroCadastro && <p className="mt-2 text-xs text-cias-vermelho">{erroCadastro}</p>}
-        <p className="mt-2 text-xs text-cias-texto2">
-          Classe e órgão julgador são preenchidos automaticamente pelo Datajud (quando disponível) e podem ser editados na janela.
-        </p>
-      </div>
+            <button
+              onClick={cadastrar}
+              disabled={salvando || novoCnj.trim() === ''}
+              className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-cias-vermelho px-4 py-2 text-sm font-semibold text-white transition hover:bg-cias-vermelhoEscuro disabled:opacity-50"
+            >
+              {salvando ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+              {salvando ? 'Consultando…' : 'Cadastrar'}
+            </button>
+          </div>
+        }
+      />
+      {erroCadastro && <p className="-mt-2 text-xs text-cias-vermelho">{erroCadastro}</p>}
 
       {/* Tabela de principais */}
       {carregando ? (

@@ -11,8 +11,6 @@ import { ConfiguracoesScreen } from './components/ConfiguracoesScreen'
 type View = 'cases' | 'config'
 type Aba = 'intimacoes' | 'processos'
 
-const PERFIL_LABEL: Record<Perfil, string> = { civel: 'Cível', trabalhista: 'Trabalhista' }
-
 export default function App() {
   // Estado inicial: perfil Cível, aba Intimações.
   const [view, setView] = useState<View>('cases')
@@ -72,40 +70,14 @@ export default function App() {
               <AvisoConfig />
             ) : view === 'config' ? (
               <ConfiguracoesScreen />
+            ) : aba === 'intimacoes' ? (
+              <IntimacoesTab perfil={perfil} refreshSignal={refreshSignal} />
             ) : (
-              <>
-                <PageHeader aba={aba} perfil={perfil} />
-                <div className="mt-5">
-                  {aba === 'intimacoes' ? (
-                    <IntimacoesTab perfil={perfil} refreshSignal={refreshSignal} />
-                  ) : (
-                    <ProcessosTab perfil={perfil} />
-                  )}
-                </div>
-              </>
+              <ProcessosTab perfil={perfil} />
             )}
           </div>
         </main>
       </div>
-    </div>
-  )
-}
-
-function PageHeader({ aba, perfil }: { aba: Aba; perfil: Perfil }) {
-  const info =
-    aba === 'intimacoes'
-      ? {
-          titulo: 'Intimações',
-          desc: `Comunicações dos processos do perfil ${PERFIL_LABEL[perfil]}, da mais recente para a mais antiga.`,
-        }
-      : {
-          titulo: 'Processos',
-          desc: `Processos principais do perfil ${PERFIL_LABEL[perfil]}. Expanda uma linha para ver os apensos.`,
-        }
-  return (
-    <div>
-      <h1 className="text-xl font-bold tracking-tight text-cias-texto">{info.titulo}</h1>
-      <p className="mt-1 text-sm text-cias-texto2">{info.desc}</p>
     </div>
   )
 }

@@ -4,6 +4,7 @@ import type { IntimacaoComProcesso, Perfil, StatusIntimacao } from '../types'
 import { listIntimacoesByPerfil, updateIntimacao } from '../lib/api'
 import { classificarPrazo, formatDateBR, trecho } from '../lib/format'
 import { TeorModal } from './TeorModal'
+import { PageHeader } from './PageHeader'
 
 const STATUS_OPCOES: StatusIntimacao[] = ['nova', 'lida', 'providenciada']
 const STATUS_LABEL: Record<StatusIntimacao, string> = { nova: 'Nova', lida: 'Lida', providenciada: 'Providenciada' }
@@ -50,18 +51,17 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
     }
   }
 
-  if (carregando) return <EstadoCentral icone={<Loader2 className="animate-spin" />} texto="Carregando intimações…" />
-  if (erro) return <EstadoCentral texto={`Erro ao carregar: ${erro}`} />
-  if (intimacoes.length === 0)
-    return (
-      <EstadoCentral
-        texto="Nenhuma intimação ainda. Cadastre OABs e processos; as intimações aparecem após a sincronização."
-      />
-    )
-
   return (
     <>
-      <div className="overflow-x-auto rounded-xl border border-cias-borda bg-cias-base shadow-sm">
+      <PageHeader titulo="Intimações" perfil={perfil} />
+      {carregando ? (
+        <EstadoCentral icone={<Loader2 className="animate-spin" />} texto="Carregando intimações…" />
+      ) : erro ? (
+        <EstadoCentral texto={`Erro ao carregar: ${erro}`} />
+      ) : intimacoes.length === 0 ? (
+        <EstadoCentral texto="Nenhuma intimação ainda. Cadastre OABs e processos; as intimações aparecem após a sincronização." />
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-cias-borda bg-cias-base shadow-sm">
         <table className="w-full min-w-[1000px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-cias-borda bg-cias-superficie/70 text-left text-[11px] font-semibold uppercase tracking-wider text-cias-texto3">
@@ -154,7 +154,8 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
             })}
           </tbody>
         </table>
-      </div>
+        </div>
+      )}
 
       <TeorModal intimacao={teorAberto} onClose={() => setTeorAberto(null)} />
     </>
