@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight, Loader2, Plus, Trash2 } from 'lucide-react'
 import type { Perfil, Processo } from '../types'
 import { CnjDuplicadoError, createPrincipal, deleteProcesso, listApensos, listPrincipais } from '../lib/api'
-import { PoloText, Tag } from './Badge'
+import { PoloText } from './Badge'
 import { PageHeader } from './PageHeader'
 import { ProcessoDetailModal } from './ProcessoDetailModal'
 
@@ -227,48 +227,58 @@ function FragmentRow({
         </td>
       </tr>
 
-      {aberto && (
-        <tr className="bg-cias-superficie/40">
+      {aberto && filhos === undefined && (
+        <tr className="bg-cias-superficie2">
           <td></td>
           <td colSpan={5} className="px-4 py-3">
-            {filhos === undefined ? (
-              <div className="flex items-center gap-2 text-xs text-cias-texto2">
-                <Loader2 size={13} className="animate-spin" /> Carregando apensos…
-              </div>
-            ) : filhos.length === 0 ? (
-              <p className="text-xs text-cias-texto2">Nenhum apenso. Adicione apensos pela janela de detalhes.</p>
-            ) : (
-              <ul className="space-y-1.5">
-                {filhos.map((a) => (
-                  <li key={a.id} className="flex items-center justify-between gap-3 rounded-md border border-cias-borda bg-cias-base px-3 py-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium text-cias-texto">{a.numero_cnj}</span>
-                      {a.classe && <Tag>{a.classe}</Tag>}
-                      {a.posicao_cias && <PoloText valor={a.posicao_cias} />}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => onAbrir(a)}
-                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-cias-vermelho hover:bg-cias-superficie2"
-                      >
-                        Detalhes <ChevronRight size={13} />
-                      </button>
-                      <button
-                        onClick={() => onExcluir(a)}
-                        title="Excluir apenso"
-                        aria-label="Excluir apenso"
-                        className="rounded-md p-1.5 text-cias-texto2 transition hover:bg-cias-superficie2 hover:text-cias-vermelho"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <div className="flex items-center gap-2 text-xs text-cias-texto2">
+              <Loader2 size={13} className="animate-spin" /> Carregando apensos…
+            </div>
           </td>
         </tr>
       )}
+
+      {aberto && filhos && filhos.length === 0 && (
+        <tr className="bg-cias-superficie2">
+          <td></td>
+          <td colSpan={5} className="px-4 py-3 text-xs text-cias-texto2">
+            Nenhum apenso. Adicione apensos pela janela de detalhes.
+          </td>
+        </tr>
+      )}
+
+      {aberto &&
+        filhos &&
+        filhos.map((a) => (
+          // Mesma estrutura de colunas do principal; diferenciado só pelo fundo mais escuro.
+          <tr key={a.id} className="border-b border-cias-borda/70 bg-cias-superficie2 hover:bg-cias-superficie2">
+            <td className="px-2 py-3"></td>
+            <td className="px-4 py-3 font-medium text-cias-texto">{a.numero_cnj}</td>
+            <td className="px-4 py-3 text-cias-texto2">{a.classe || '—'}</td>
+            <td className="px-4 py-3 text-cias-texto2">{a.rotulo || '—'}</td>
+            <td className="px-4 py-3">
+              <PoloText valor={a.posicao_cias} />
+            </td>
+            <td className="px-4 py-3">
+              <div className="flex items-center justify-end gap-1">
+                <button
+                  onClick={() => onAbrir(a)}
+                  className="rounded-md px-3 py-1.5 text-xs font-medium text-cias-vermelho hover:bg-cias-base"
+                >
+                  Detalhes
+                </button>
+                <button
+                  onClick={() => onExcluir(a)}
+                  title="Excluir apenso"
+                  aria-label="Excluir apenso"
+                  className="rounded-md p-1.5 text-cias-texto2 transition hover:bg-cias-base hover:text-cias-vermelho"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </td>
+          </tr>
+        ))}
     </>
   )
 }
