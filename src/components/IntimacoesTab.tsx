@@ -68,7 +68,7 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
       ) : intimacoes.length === 0 ? (
         <EstadoCentral texto="Nenhuma intimação ainda. Cadastre OABs e processos; as intimações aparecem após a sincronização." />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {intimacoes.map((i) => (
             <IntimacaoCard key={i.id} intimacao={i} onSalvar={salvar} />
           ))}
@@ -91,41 +91,62 @@ function IntimacaoCard({
 
   return (
     <article
-      className={`overflow-hidden rounded-xl border border-l-4 border-cias-borda bg-cias-base shadow-sm ${STATUS_ACCENT[i.status]}`}
+      className={`rounded-xl border border-l-4 border-cias-borda bg-cias-base p-5 shadow-sm ${STATUS_ACCENT[i.status]}`}
     >
-      {/* Topo: dados (esquerda) | controles (direita) */}
-      <div className="flex flex-col gap-5 p-5 md:flex-row md:items-start md:gap-6">
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="text-base font-semibold text-cias-texto">
-            {i.numero_processo || i.processo?.numero_cnj || '—'}
-          </div>
-          <div className="text-sm text-cias-texto2">
-            <span className="font-medium text-cias-texto">{i.sigla_tribunal || '—'}</span>
-            {i.nome_orgao ? <span> · {i.nome_orgao}</span> : null}
-          </div>
-          <div className="flex flex-wrap gap-x-6 gap-y-1 pt-1 text-xs text-cias-texto2">
-            <span>
-              <span className="font-semibold uppercase tracking-wide text-cias-texto3">Tipo</span> ·{' '}
-              {i.tipo_comunicacao || '—'}
-            </span>
-            <span>
-              <span className="font-semibold uppercase tracking-wide text-cias-texto3">Disponib.</span> ·{' '}
-              {formatDateBR(i.data_disponibilizacao)}
-            </span>
-            {i.destinatario_advogado && (
+      <div className="flex flex-col gap-4 md:flex-row md:gap-6">
+        {/* Esquerda: dados + inteiro teor (compacto) */}
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="space-y-1">
+            <div className="text-base font-semibold text-cias-texto">
+              {i.numero_processo || i.processo?.numero_cnj || '—'}
+            </div>
+            <div className="text-sm text-cias-texto2">
+              <span className="font-medium text-cias-texto">{i.sigla_tribunal || '—'}</span>
+              {i.nome_orgao ? <span> · {i.nome_orgao}</span> : null}
+            </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-0.5 pt-0.5 text-xs text-cias-texto2">
               <span>
-                <span className="font-semibold uppercase tracking-wide text-cias-texto3">Adv.</span> ·{' '}
-                {i.destinatario_advogado}
+                <span className="font-semibold uppercase tracking-wide text-cias-texto3">Tipo</span> ·{' '}
+                {i.tipo_comunicacao || '—'}
               </span>
-            )}
+              <span>
+                <span className="font-semibold uppercase tracking-wide text-cias-texto3">Disponib.</span> ·{' '}
+                {formatDateBR(i.data_disponibilizacao)}
+              </span>
+              {i.destinatario_advogado && (
+                <span>
+                  <span className="font-semibold uppercase tracking-wide text-cias-texto3">Adv.</span> ·{' '}
+                  {i.destinatario_advogado}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-cias-texto3">Inteiro teor</span>
+              {i.link_certidao && (
+                <a
+                  href={i.link_certidao}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-cias-vermelho hover:underline"
+                >
+                  <ExternalLink size={12} /> certidão
+                </a>
+              )}
+            </div>
+            <div className="max-h-28 overflow-y-auto whitespace-pre-wrap rounded-lg border border-cias-borda bg-cias-superficie/50 p-3 text-sm leading-relaxed text-cias-texto">
+              {teor || 'Sem teor disponível.'}
+            </div>
           </div>
         </div>
 
         {/* Divisória vertical */}
         <div className="hidden w-px self-stretch bg-cias-borda md:block" />
 
-        {/* Controles editáveis */}
-        <div className="space-y-3 md:w-72 md:shrink-0">
+        {/* Direita: selecionáveis */}
+        <div className="space-y-3 md:w-64 md:shrink-0">
           <ControleCampo label="Status">
             <select
               value={i.status}
@@ -167,26 +188,6 @@ function IntimacaoCard({
               className="w-full rounded-md border border-cias-borda bg-cias-base px-2 py-1.5 text-sm text-cias-texto"
             />
           </ControleCampo>
-        </div>
-      </div>
-
-      {/* Inteiro teor */}
-      <div className="border-t border-cias-borda bg-cias-superficie/50 px-5 py-4">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-cias-texto3">Inteiro teor</span>
-          {i.link_certidao && (
-            <a
-              href={i.link_certidao}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs font-medium text-cias-vermelho hover:underline"
-            >
-              <ExternalLink size={12} /> certidão
-            </a>
-          )}
-        </div>
-        <div className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg border border-cias-borda bg-cias-base p-4 text-sm leading-relaxed text-cias-texto">
-          {teor || 'Sem teor disponível.'}
         </div>
       </div>
     </article>
