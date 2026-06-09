@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ExternalLink, Loader2, Maximize2 } from 'lucide-react'
+import { ExternalLink, Loader2, Maximize2, Minimize2 } from 'lucide-react'
 import type { IntimacaoComProcesso, Perfil, StatusIntimacao } from '../types'
 import { listIntimacoesByPerfil, updateIntimacao } from '../lib/api'
 import { classificarPrazo, formatDateBR, limparTeor } from '../lib/format'
 import { PageHeader } from './PageHeader'
-import { TeorModal } from './TeorModal'
 import { Tag } from './Badge'
 
 const STATUS_OPCOES: StatusIntimacao[] = ['nova', 'lida', 'providenciada']
@@ -39,7 +38,6 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
   const [intimacoes, setIntimacoes] = useState<IntimacaoComProcesso[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
-  const [teorAberto, setTeorAberto] = useState<IntimacaoComProcesso | null>(null)
 
   useEffect(() => {
     let vivo = true
@@ -82,11 +80,10 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
       ) : (
         <div className="space-y-3">
           {intimacoes.map((i) => (
-            <IntimacaoCard key={i.id} intimacao={i} onSalvar={salvar} onAbrirTeor={setTeorAberto} />
+            <IntimacaoCard key={i.id} intimacao={i} onSalvar={salvar} />
           ))}
         </div>
       )}
-      <TeorModal intimacao={teorAberto} onClose={() => setTeorAberto(null)} />
     </>
   )
 }
@@ -94,12 +91,11 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
 function IntimacaoCard({
   intimacao: i,
   onSalvar,
-  onAbrirTeor,
 }: {
   intimacao: IntimacaoComProcesso
   onSalvar: (id: string, patch: Patch) => void
-  onAbrirTeor: (i: IntimacaoComProcesso) => void
 }) {
+  const [expandido, setExpandido] = useState(false)
   const prazo = i.status !== 'providenciada' ? classificarPrazo(i.prazo_fatal) : null
   const prazoVermelho = prazo === 'vencido' || prazo === 'proximo'
   const teor = limparTeor(i.teor)
@@ -132,12 +128,12 @@ function IntimacaoCard({
               <div className="flex items-center gap-1.5">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-cias-texto3">Inteiro teor</span>
                 <button
-                  onClick={() => onAbrirTeor(i)}
-                  title="Abrir teor em janela"
-                  aria-label="Abrir teor em janela"
+                  onClick={() => setExpandido((v) => !v)}
+                  title={expandido ? 'Recolher teor' : 'Expandir teor'}
+                  aria-label={expandido ? 'Recolher teor' : 'Expandir teor'}
                   className="rounded p-0.5 text-cias-texto3 transition hover:bg-cias-superficie2 hover:text-cias-vermelho"
                 >
-                  <Maximize2 size={13} />
+                  {expandido ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
                 </button>
               </div>
               {i.link_certidao && (
@@ -151,7 +147,11 @@ function IntimacaoCard({
                 </a>
               )}
             </div>
-            <div className="max-h-28 overflow-y-auto whitespace-pre-wrap rounded-lg border border-cias-borda bg-cias-superficie/50 p-3 text-sm leading-relaxed text-cias-texto">
+            <div
+              className={`overflow-y-auto whitespace-pre-wrap rounded-lg border border-cias-borda bg-cias-superficie/50 p-3 text-sm leading-relaxed text-cias-texto transition-[max-height] duration-200 ${
+                expandido ? 'max-h-[75vh]' : 'max-h-28'
+              }`}
+            >
               {teor || 'Sem teor disponível.'}
             </div>
           </div>
