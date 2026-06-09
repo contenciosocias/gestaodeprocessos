@@ -24,6 +24,9 @@ export interface Processo {
   objeto: string | null
   rotulo: string | null
   observacao: string | null
+  // Nomes das partes em cada polo (manuais; alimentam o cabeçalho do e-mail de disparo).
+  polo_ativo: string | null
+  polo_passivo: string | null
   created_at: string
 }
 
@@ -42,6 +45,8 @@ export interface Intimacao {
   status: StatusIntimacao
   prazo_fatal: string | null
   observacao: string | null
+  // Quando entrou num disparo diário por e-mail (null = ainda não notificada).
+  notificada_em: string | null
   created_at: string
   updated_at: string
 }
@@ -58,6 +63,14 @@ export interface AppConfig {
   chave: string
   valor: string | null
   updated_at: string
+}
+
+// Destinatário do disparo diário, por área (roteamento estrito).
+export interface DestinatarioDisparo {
+  id: string
+  area: Perfil
+  email: string
+  created_at: string
 }
 
 // Linha (de intimacao) já com dados do processo embutidos, para a lista.

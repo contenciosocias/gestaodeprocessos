@@ -10,3 +10,7 @@ verify_jwt = false
 
 [functions.consulta-datajud]
 verify_jwt = false
+
+# Chamada pelo pg_cron (de hora em hora) sem login de usuário.
+[functions.disparo-diario]
+verify_jwt = false

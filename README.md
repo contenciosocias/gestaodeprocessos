@@ -20,6 +20,7 @@ sem notificações. Front-end estático (GitHub Pages) + Supabase (Postgres + Ed
   - [3. Publicar as Edge Functions](#3-publicar-as-edge-functions)
   - [4. Rodar o front localmente](#4-rodar-o-front-localmente)
   - [5. Publicar no GitHub Pages](#5-publicar-no-github-pages)
+  - [6. Disparo diário por e-mail](#6-disparo-diário-por-e-mail)
 - [Ordem de uso](#ordem-de-uso)
 - [Integrações (DJEn e Datajud)](#integrações-djen-e-datajud)
 - [Identidade visual](#identidade-visual)
@@ -83,11 +84,16 @@ sem notificações. Front-end estático (GitHub Pages) + Supabase (Postgres + Ed
 └── supabase/
     ├── config.toml           # verify_jwt = false nas funções (sem login)
     ├── migrations/
-    │   └── 0001_init.sql      # tabelas, enums, constraints, RLS, defaults
+    │   ├── 0001_init.sql      # tabelas, enums, constraints, RLS, defaults
+    │   ├── 0002_data_ajuizamento.sql
+    │   └── 0003_disparo_diario.sql  # notificada_em, polo_ativo/passivo, destinatarios_disparo, config do disparo
     └── functions/
         ├── _shared/cors.ts
-        ├── sync-intimacoes/   # DJEn — puxa intimações por processo
-        └── consulta-datajud/  # Datajud — classe + órgão julgador no cadastro
+        ├── _shared/sync.ts    # sincronização DJEn (compartilhada pelas 2 funções abaixo)
+        ├── _shared/email.ts   # envio de e-mail (provider isolado: Brevo)
+        ├── sync-intimacoes/   # DJEn — puxa intimações por processo (chamada pelo front)
+        ├── consulta-datajud/  # Datajud — classe + órgão julgador no cadastro
+        └── disparo-diario/    # cron horário — e-mail diário de intimações por área
 ```
 
 ---
@@ -127,6 +133,7 @@ o RLS (liberado para anon — provisório) e já insere os **defaults** de confi
 ```bash
 supabase functions deploy sync-intimacoes
 supabase functions deploy consulta-datajud
+supabase functions deploy disparo-diario   # e-mail diário — exige o secret do Brevo + cron (ver seção 6)
 ```
 
 As funções usam automaticamente as variáveis `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`
@@ -159,6 +166,65 @@ Abra o endereço que o Vite imprimir (ex.: <http://localhost:5173>).
 
 > **Domínio próprio?** Configure o CNAME no Pages; nesse caso o `base` deve ser `/`
 > (ajuste a env `VITE_BASE` no workflow, ou remova-a).
+
+### 6. Disparo diário por e-mail
+
+Envio diário, sem ninguém abrir a plataforma: a Edge Function `disparo-diario` busca as
+intimações (rodando a mesma sincronização do `sync-intimacoes`) e manda **um e-mail por área**
+aos responsáveis — com as novas intimações da área ou avisando que não há novidades. Roteamento
+**estrito por área**: cíveis só para os e-mails cíveis; trabalhistas só para os trabalhistas.
+
+**a) Provedor de e-mail (Brevo).** Sem domínio próprio, use o [Brevo](https://www.brevo.com)
+(faixa gratuita permanente de ~300 e-mails/dia, API HTTP).
+
+1. Crie a conta e **verifique um remetente** (Senders & IP → adicione e confirme um e-mail).
+   Esse endereço é o que vai em **Configurações → Disparo de intimações → E-mail remetente**.
+2. Gere uma **API key** (SMTP & API → API Keys) e grave como secret da função:
+
+   ```bash
+   supabase secrets set BREVO_API_KEY=xkeysib-xxxxxxxx
+   ```
+
+**b) Publique a função:**
+
+```bash
+supabase functions deploy disparo-diario
+```
+
+**c) Agende o cron (uma vez, no SQL Editor).** Habilita as extensões e cria um job **de hora em
+hora** (minuto 0); a própria função decide se é a hora certa (assim, mudar a hora em Configurações
+**não** exige remexer no cron). Troque `SEU_PROJECT_REF` e `SUA_ANON_KEY`:
+
+```sql
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
+select cron.schedule(
+  'disparo-diario-horario',
+  '0 * * * *',
+  $$
+  select net.http_post(
+    url     := 'https://SEU_PROJECT_REF.supabase.co/functions/v1/disparo-diario',
+    headers := jsonb_build_object(
+      'Content-Type',  'application/json',
+      'Authorization', 'Bearer SUA_ANON_KEY'
+    ),
+    body    := '{}'::jsonb
+  );
+  $$
+);
+```
+
+> Para conferir/limpar: `select * from cron.job;` e `select cron.unschedule('disparo-diario-horario');`.
+> Para testar **fora da hora**, invoque a função com `{ "forcar": true }` no corpo (pula a guarda
+> de horário; ainda envia de verdade e marca as intimações).
+
+**d) Configure em Configurações → Disparo de intimações:** hora (0–23), fuso (default
+`America/Sao_Paulo`), o e-mail remetente verificado e as listas de e-mails de cada área.
+
+**e) Entregabilidade (sem domínio próprio).** A entrega é mais fraca: peça aos destinatários para
+marcarem o **primeiro e-mail como "não é spam"** e adicionarem o remetente aos contatos confiáveis.
+**Melhoria futura:** com um domínio próprio, autenticá-lo no Brevo (SPF/DKIM) resolve a entrega.
 
 ---
 
@@ -230,6 +296,9 @@ vencido ou próximo (≤ 3 dias) aparece destacado em **vermelho**.
 ## Limitações do MVP
 
 Por decisão de escopo, **não** há (ainda): login/autenticação, cálculo automático de prazo
-(o prazo fatal é digitado à mão), relatórios/gráficos/exportações, notificações, agendamento/cron
-da sincronização, nem importação de movimentações do Datajud (são sempre manuais). Apenas **um
-nível** de apensamento (sem apenso de apenso).
+(o prazo fatal é digitado à mão), relatórios/gráficos/exportações, nem importação de movimentações
+do Datajud (são sempre manuais). Apenas **um nível** de apensamento (sem apenso de apenso).
+
+Há **um** disparo automático: o e-mail diário de intimações (seção
+[Disparo diário por e-mail](#6-disparo-diário-por-e-mail)), agendado por `pg_cron`. Fora dele, a
+sincronização continua sob demanda (ao abrir o site / botão **Atualizar agora**).

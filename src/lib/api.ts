@@ -3,6 +3,7 @@ import { supabase } from './supabase'
 import { formatCnj, onlyDigits } from './cnj'
 import type {
   AppConfig,
+  DestinatarioDisparo,
   Intimacao,
   IntimacaoComProcesso,
   Movimentacao,
@@ -166,7 +167,18 @@ export async function createApenso(principal: Processo, numeroCnj: string): Prom
 export async function updateProcesso(
   id: string,
   patch: Partial<
-    Pick<Processo, 'classe' | 'orgao_julgador' | 'data_ajuizamento' | 'posicao_cias' | 'objeto' | 'rotulo' | 'observacao'>
+    Pick<
+      Processo,
+      | 'classe'
+      | 'orgao_julgador'
+      | 'data_ajuizamento'
+      | 'posicao_cias'
+      | 'objeto'
+      | 'rotulo'
+      | 'observacao'
+      | 'polo_ativo'
+      | 'polo_passivo'
+    >
   >,
 ): Promise<void> {
   const { error } = await supabase.from('processos').update(patch).eq('id', id)
@@ -269,6 +281,34 @@ export async function setAppConfig(chave: string, valor: string): Promise<void> 
   const { error } = await supabase
     .from('app_config')
     .upsert({ chave, valor, updated_at: new Date().toISOString() }, { onConflict: 'chave' })
+  if (error) throw error
+}
+
+// ---------------------------------------------------------------------------
+// Destinatários do disparo diário (Configurações > Disparo de intimações)
+// ---------------------------------------------------------------------------
+export async function listDestinatarios(): Promise<DestinatarioDisparo[]> {
+  const { data, error } = await supabase
+    .from('destinatarios_disparo')
+    .select('*')
+    .order('area', { ascending: true })
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return data as DestinatarioDisparo[]
+}
+
+export async function createDestinatario(input: { area: Perfil; email: string }): Promise<DestinatarioDisparo> {
+  const { data, error } = await supabase
+    .from('destinatarios_disparo')
+    .insert({ area: input.area, email: input.email.trim() })
+    .select()
+    .single()
+  if (error) throw error
+  return data as DestinatarioDisparo
+}
+
+export async function deleteDestinatario(id: string): Promise<void> {
+  const { error } = await supabase.from('destinatarios_disparo').delete().eq('id', id)
   if (error) throw error
 }
 

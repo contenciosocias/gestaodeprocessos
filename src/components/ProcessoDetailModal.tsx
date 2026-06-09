@@ -87,6 +87,18 @@ export function ProcessoDetailModal({ processo, onClose, onChanged, onOpenProces
             <CampoData rotulo="Data de ajuizamento" valor={proc.data_ajuizamento} onSave={(v) => salvarCampo({ data_ajuizamento: v })} />
             <CampoPolo valor={proc.posicao_cias} onSave={(v) => salvarCampo({ posicao_cias: v })} />
             <CampoTexto rotulo="Parte contrária" valor={proc.rotulo} onSave={(v) => salvarCampo({ rotulo: v })} placeholder="nome da parte contrária" />
+            <CampoTexto
+              rotulo="Polo ativo"
+              valor={proc.polo_ativo}
+              onSave={(v) => salvarCampo({ polo_ativo: v })}
+              placeholder="parte(s) no polo ativo — usado no e-mail de disparo"
+            />
+            <CampoTexto
+              rotulo="Polo passivo"
+              valor={proc.polo_passivo}
+              onSave={(v) => salvarCampo({ polo_passivo: v })}
+              placeholder="parte(s) no polo passivo — usado no e-mail de disparo"
+            />
           </div>
         </Secao>
 

@@ -1,7 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
-import type { Oab } from '../types'
-import { createOab, deleteOab, getAppConfig, listOabs, setAppConfig, updateOab } from '../lib/api'
+import type { DestinatarioDisparo, Oab, Perfil } from '../types'
+import {
+  createDestinatario,
+  createOab,
+  deleteDestinatario,
+  deleteOab,
+  getAppConfig,
+  listDestinatarios,
+  listOabs,
+  setAppConfig,
+  updateOab,
+} from '../lib/api'
 
 export function ConfiguracoesScreen() {
   return (
@@ -10,6 +20,7 @@ export function ConfiguracoesScreen() {
         <h1 className="text-xl font-bold text-cias-texto">Configurações</h1>
       </div>
       <OabsBlock />
+      <DisparoBlock />
       <ApisBlock />
     </div>
   )
@@ -222,6 +233,228 @@ function ApisBlock() {
         </div>
       )}
     </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Bloco 3 — Disparo de intimações (e-mail diário)
+// ---------------------------------------------------------------------------
+const TIMEZONE_DEFAULT = 'America/Sao_Paulo'
+
+function DisparoBlock() {
+  const [cfg, setCfg] = useState<Record<string, string>>({
+    disparo_hora: '8',
+    disparo_timezone: TIMEZONE_DEFAULT,
+    disparo_remetente: '',
+  })
+  const [carregando, setCarregando] = useState(true)
+  const [salvando, setSalvando] = useState(false)
+  const [ok, setOk] = useState(false)
+  const [dests, setDests] = useState<DestinatarioDisparo[]>([])
+
+  useEffect(() => {
+    getAppConfig()
+      .then((all) =>
+        setCfg({
+          disparo_hora: all.disparo_hora ?? '8',
+          disparo_timezone: all.disparo_timezone || TIMEZONE_DEFAULT,
+          disparo_remetente: all.disparo_remetente ?? '',
+        }),
+      )
+      .finally(() => setCarregando(false))
+  }, [])
+
+  const recarregarDest = useCallback(() => {
+    // Tolera a tabela ainda não migrada (degrada para lista vazia em vez de quebrar).
+    listDestinatarios()
+      .then(setDests)
+      .catch(() => setDests([]))
+  }, [])
+  useEffect(recarregarDest, [recarregarDest])
+
+  function setCampo(chave: string, valor: string) {
+    setCfg((c) => ({ ...c, [chave]: valor }))
+    setOk(false)
+  }
+
+  async function salvar() {
+    setSalvando(true)
+    setOk(false)
+    try {
+      await setAppConfig('disparo_hora', String(cfg.disparo_hora ?? '8'))
+      await setAppConfig('disparo_timezone', (cfg.disparo_timezone || TIMEZONE_DEFAULT).trim())
+      await setAppConfig('disparo_remetente', (cfg.disparo_remetente ?? '').trim())
+      setOk(true)
+    } catch (e) {
+      alert('Não foi possível salvar o disparo: ' + String((e as Error)?.message ?? e))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  async function adicionarEmail(area: Perfil, email: string) {
+    await createDestinatario({ area, email })
+    recarregarDest()
+  }
+  async function removerEmail(id: string) {
+    await deleteDestinatario(id)
+    recarregarDest()
+  }
+
+  return (
+    <section className="rounded-xl border border-cias-borda bg-cias-base p-5 shadow-sm">
+      <h2 className="text-base font-semibold text-cias-texto">Disparo de intimações</h2>
+      <p className="mt-1 text-xs text-cias-texto2">
+        Todo dia, no horário abaixo, o sistema busca as intimações e envia um e-mail por área aos responsáveis — com as
+        novidades ou avisando que não há. Cível vai só para os e-mails cíveis; trabalhista, só para os trabalhistas.
+      </p>
+
+      {carregando ? (
+        <p className="mt-4 text-sm text-cias-texto2">Carregando…</p>
+      ) : (
+        <div className="mt-4 space-y-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-cias-texto2">Hora do disparo (0–23)</span>
+              <input
+                type="number"
+                min={0}
+                max={23}
+                value={cfg.disparo_hora ?? ''}
+                onChange={(e) => setCampo('disparo_hora', e.target.value)}
+                className="w-full rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-cias-texto2">Fuso horário</span>
+              <input
+                value={cfg.disparo_timezone ?? ''}
+                onChange={(e) => setCampo('disparo_timezone', e.target.value)}
+                placeholder={TIMEZONE_DEFAULT}
+                className="w-full rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-cias-texto2">E-mail remetente</span>
+              <input
+                type="email"
+                value={cfg.disparo_remetente ?? ''}
+                onChange={(e) => setCampo('disparo_remetente', e.target.value)}
+                placeholder="verificado no provedor (Brevo)"
+                className="w-full rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"
+              />
+            </label>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={salvar}
+              disabled={salvando}
+              className="inline-flex items-center gap-2 rounded-lg bg-cias-vermelho px-4 py-2 text-sm font-semibold text-cias-base transition hover:bg-cias-vermelho/90 disabled:opacity-50"
+            >
+              {salvando && <Loader2 size={16} className="animate-spin" />} Salvar
+            </button>
+            {ok && <span className="text-sm text-cias-sucesso">Configurações salvas.</span>}
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <ListaEmails
+              titulo="E-mails — Cível"
+              emails={dests.filter((d) => d.area === 'civel')}
+              onAdd={(email) => adicionarEmail('civel', email)}
+              onRemove={removerEmail}
+            />
+            <ListaEmails
+              titulo="E-mails — Trabalhista"
+              emails={dests.filter((d) => d.area === 'trabalhista')}
+              onAdd={(email) => adicionarEmail('trabalhista', email)}
+              onRemove={removerEmail}
+            />
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function ListaEmails({
+  titulo,
+  emails,
+  onAdd,
+  onRemove,
+}: {
+  titulo: string
+  emails: DestinatarioDisparo[]
+  onAdd: (email: string) => Promise<void>
+  onRemove: (id: string) => Promise<void>
+}) {
+  const [novo, setNovo] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function adicionar() {
+    const email = novo.trim()
+    setErro(null)
+    if (!/.+@.+\..+/.test(email)) {
+      setErro('Informe um e-mail válido.')
+      return
+    }
+    setSalvando(true)
+    try {
+      await onAdd(email)
+      setNovo('')
+    } catch (e) {
+      setErro(String((e as Error)?.message ?? e))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-cias-borda p-3">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-cias-texto2">{titulo}</h3>
+      <div className="mt-2 flex items-center gap-2">
+        <input
+          value={novo}
+          onChange={(e) => setNovo(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && !salvando && novo.trim() && adicionar()}
+          placeholder="email@exemplo.com"
+          className="min-w-0 flex-1 rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"
+        />
+        <button
+          onClick={adicionar}
+          disabled={salvando || novo.trim() === ''}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-cias-borda px-3 py-2 text-sm font-medium text-cias-texto transition hover:bg-cias-superficie2 disabled:opacity-50"
+        >
+          {salvando ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} Adicionar
+        </button>
+      </div>
+      {erro && <p className="mt-1 text-xs text-cias-vermelho">{erro}</p>}
+
+      <div className="mt-3">
+        {emails.length === 0 ? (
+          <p className="rounded-md border border-dashed border-cias-borda px-3 py-2 text-xs text-cias-texto2">
+            Nenhum e-mail cadastrado.
+          </p>
+        ) : (
+          <ul className="divide-y divide-cias-borda rounded-md border border-cias-borda">
+            {emails.map((d) => (
+              <li key={d.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                <span className="min-w-0 truncate text-cias-texto">{d.email}</span>
+                <button
+                  onClick={() => onRemove(d.id)}
+                  className="shrink-0 rounded-md p-1.5 text-cias-texto2 transition hover:bg-cias-superficie2 hover:text-cias-vermelho"
+                  title="Remover"
+                  aria-label="Remover e-mail"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
   )
 }
 
