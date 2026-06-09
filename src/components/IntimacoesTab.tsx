@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { ExternalLink, Loader2 } from 'lucide-react'
+import { ExternalLink, Loader2, Maximize2 } from 'lucide-react'
 import type { IntimacaoComProcesso, Perfil, StatusIntimacao } from '../types'
 import { listIntimacoesByPerfil, updateIntimacao } from '../lib/api'
 import { classificarPrazo, formatDateBR, limparTeor } from '../lib/format'
 import { PageHeader } from './PageHeader'
+import { TeorModal } from './TeorModal'
 
 const STATUS_OPCOES: StatusIntimacao[] = ['nova', 'lida', 'providenciada']
 const STATUS_LABEL: Record<StatusIntimacao, string> = { nova: 'Nova', lida: 'Lida', providenciada: 'Providenciada' }
@@ -28,6 +29,7 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
   const [intimacoes, setIntimacoes] = useState<IntimacaoComProcesso[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
+  const [teorAberto, setTeorAberto] = useState<IntimacaoComProcesso | null>(null)
 
   useEffect(() => {
     let vivo = true
@@ -70,10 +72,11 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
       ) : (
         <div className="space-y-3">
           {intimacoes.map((i) => (
-            <IntimacaoCard key={i.id} intimacao={i} onSalvar={salvar} />
+            <IntimacaoCard key={i.id} intimacao={i} onSalvar={salvar} onAbrirTeor={setTeorAberto} />
           ))}
         </div>
       )}
+      <TeorModal intimacao={teorAberto} onClose={() => setTeorAberto(null)} />
     </>
   )
 }
@@ -81,9 +84,11 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
 function IntimacaoCard({
   intimacao: i,
   onSalvar,
+  onAbrirTeor,
 }: {
   intimacao: IntimacaoComProcesso
   onSalvar: (id: string, patch: Patch) => void
+  onAbrirTeor: (i: IntimacaoComProcesso) => void
 }) {
   const prazo = i.status !== 'providenciada' ? classificarPrazo(i.prazo_fatal) : null
   const prazoVermelho = prazo === 'vencido' || prazo === 'proximo'
@@ -112,7 +117,17 @@ function IntimacaoCard({
 
           <div>
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-cias-texto3">Inteiro teor</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-cias-texto3">Inteiro teor</span>
+                <button
+                  onClick={() => onAbrirTeor(i)}
+                  title="Abrir teor em janela"
+                  aria-label="Abrir teor em janela"
+                  className="rounded p-0.5 text-cias-texto3 transition hover:bg-cias-superficie2 hover:text-cias-vermelho"
+                >
+                  <Maximize2 size={13} />
+                </button>
+              </div>
               {i.link_certidao && (
                 <a
                   href={i.link_certidao}
