@@ -78,7 +78,7 @@ export function ProcessosTab({ perfil }: { perfil: Perfil }) {
   return (
     <div className="space-y-4">
       {/* Cadastro de processo principal */}
-      <div className="rounded-xl border border-cias-borda bg-cias-base p-4">
+      <div className="rounded-xl border border-cias-borda bg-cias-base p-4 shadow-sm">
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex-1 min-w-[18rem]">
             <span className="mb-1 block text-xs font-medium text-cias-texto2">Cadastrar processo (número CNJ)</span>
@@ -113,10 +113,10 @@ export function ProcessosTab({ perfil }: { perfil: Perfil }) {
       ) : principais.length === 0 ? (
         <Estado texto="Nenhum processo cadastrado neste perfil. Cadastre o primeiro acima." />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-cias-borda bg-cias-base">
+        <div className="overflow-x-auto rounded-xl border border-cias-borda bg-cias-base shadow-sm">
           <table className="w-full min-w-[900px] border-collapse text-sm">
             <thead>
-              <tr className="border-b border-cias-borda text-left text-xs font-semibold uppercase tracking-wide text-cias-texto2">
+              <tr className="border-b border-cias-borda bg-cias-superficie/70 text-left text-[11px] font-semibold uppercase tracking-wider text-cias-texto3">
                 <th className="w-10 px-2 py-3"></th>
                 <th className="px-4 py-3">Processo</th>
                 <th className="px-4 py-3">Classe</th>

@@ -61,10 +61,10 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
 
   return (
     <>
-      <div className="overflow-x-auto rounded-xl border border-cias-borda bg-cias-base">
+      <div className="overflow-x-auto rounded-xl border border-cias-borda bg-cias-base shadow-sm">
         <table className="w-full min-w-[1000px] border-collapse text-sm">
           <thead>
-            <tr className="border-b border-cias-borda text-left text-xs font-semibold uppercase tracking-wide text-cias-texto2">
+            <tr className="border-b border-cias-borda bg-cias-superficie/70 text-left text-[11px] font-semibold uppercase tracking-wider text-cias-texto3">
               <th className="px-4 py-3">Processo</th>
               <th className="px-4 py-3">Órgão / Tribunal</th>
               <th className="px-4 py-3">Tipo</th>

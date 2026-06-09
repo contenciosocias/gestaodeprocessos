@@ -3,13 +3,16 @@ import { AlertTriangle } from 'lucide-react'
 import type { Perfil } from './types'
 import { isSupabaseConfigured } from './lib/supabase'
 import { getLastSyncAt, maybeSync } from './lib/api'
-import { Header } from './components/Header'
+import { Sidebar } from './components/Sidebar'
+import { Topbar } from './components/Topbar'
 import { IntimacoesTab } from './components/IntimacoesTab'
 import { ProcessosTab } from './components/ProcessosTab'
 import { ConfiguracoesScreen } from './components/ConfiguracoesScreen'
 
 type View = 'cases' | 'config'
 type Aba = 'intimacoes' | 'processos'
+
+const PERFIL_LABEL: Record<Perfil, string> = { civel: 'Cível', trabalhista: 'Trabalhista' }
 
 export default function App() {
   // Estado inicial: perfil Cível, aba Intimações.
@@ -21,7 +24,6 @@ export default function App() {
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null)
   const [refreshSignal, setRefreshSignal] = useState(0)
 
-  // Dispara a sincronização (respeitando o throttle, salvo `force`) e atualiza a UI.
   const sincronizar = useCallback(async (force: boolean) => {
     if (!isSupabaseConfigured) return
     setSincronizando(true)
@@ -36,78 +38,90 @@ export default function App() {
     }
   }, [])
 
-  // Ao abrir o app / recarregar a página: sincroniza com throttle de ~10 min.
+  // Ao abrir / recarregar: sincroniza com throttle de ~10 min.
   useEffect(() => {
     void sincronizar(false)
   }, [sincronizar])
 
   function selecionarPerfil(p: Perfil) {
     setPerfil(p)
-    setView('cases') // selecionar um perfil volta da tela de Configurações
+    setView('cases') // selecionar perfil volta da tela de Configurações
+  }
+  function selecionarAba(a: Aba) {
+    setAba(a)
+    setView('cases')
   }
 
   return (
-    <div className="min-h-screen bg-cias-superficie">
-      <Header
-        perfil={perfil}
-        emCasos={view === 'cases'}
-        onSelectPerfil={selecionarPerfil}
-        onAbrirConfig={() => setView('config')}
-        onAtualizarAgora={() => void sincronizar(true)}
-        sincronizando={sincronizando}
+    <div className="flex min-h-screen bg-cias-superficie text-cias-texto">
+      <Sidebar
+        view={view}
+        aba={aba}
+        onSelectAba={selecionarAba}
+        onOpenConfig={() => setView('config')}
         lastSyncAt={lastSyncAt}
       />
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        {!isSupabaseConfigured ? (
-          <AvisoConfig />
-        ) : view === 'config' ? (
-          <ConfiguracoesScreen />
-        ) : (
-          <>
-            {/* Abas do perfil ativo */}
-            <div className="mb-5 flex gap-1 border-b border-cias-borda">
-              <TabButton ativo={aba === 'intimacoes'} onClick={() => setAba('intimacoes')}>
-                Intimações
-              </TabButton>
-              <TabButton ativo={aba === 'processos'} onClick={() => setAba('processos')}>
-                Processos
-              </TabButton>
-            </div>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Topbar
+          perfil={perfil}
+          emCasos={view === 'cases'}
+          onSelectPerfil={selecionarPerfil}
+          onAtualizar={() => void sincronizar(true)}
+          sincronizando={sincronizando}
+        />
 
-            {aba === 'intimacoes' ? (
-              <IntimacoesTab perfil={perfil} refreshSignal={refreshSignal} />
+        <main className="flex-1">
+          <div className="mx-auto max-w-screen-2xl px-6 py-6">
+            {!isSupabaseConfigured ? (
+              <AvisoConfig />
+            ) : view === 'config' ? (
+              <ConfiguracoesScreen />
             ) : (
-              <ProcessosTab perfil={perfil} />
+              <>
+                <PageHeader aba={aba} perfil={perfil} />
+                <div className="mt-5">
+                  {aba === 'intimacoes' ? (
+                    <IntimacoesTab perfil={perfil} refreshSignal={refreshSignal} />
+                  ) : (
+                    <ProcessosTab perfil={perfil} />
+                  )}
+                </div>
+              </>
             )}
-          </>
-        )}
-      </main>
+          </div>
+        </main>
+      </div>
     </div>
   )
 }
 
-function TabButton({ ativo, onClick, children }: { ativo: boolean; onClick: () => void; children: React.ReactNode }) {
+function PageHeader({ aba, perfil }: { aba: Aba; perfil: Perfil }) {
+  const info =
+    aba === 'intimacoes'
+      ? {
+          titulo: 'Intimações',
+          desc: `Comunicações dos processos do perfil ${PERFIL_LABEL[perfil]}, da mais recente para a mais antiga.`,
+        }
+      : {
+          titulo: 'Processos',
+          desc: `Processos principais do perfil ${PERFIL_LABEL[perfil]}. Expanda uma linha para ver os apensos.`,
+        }
   return (
-    <button
-      onClick={onClick}
-      className={[
-        '-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold transition',
-        ativo ? 'border-cias-vermelho text-cias-vermelho' : 'border-transparent text-cias-texto2 hover:text-cias-texto',
-      ].join(' ')}
-    >
-      {children}
-    </button>
+    <div>
+      <h1 className="text-xl font-bold tracking-tight text-cias-texto">{info.titulo}</h1>
+      <p className="mt-1 text-sm text-cias-texto2">{info.desc}</p>
+    </div>
   )
 }
 
 function AvisoConfig() {
   return (
-    <div className="mb-5 flex items-start gap-3 rounded-lg border border-cias-laranja/40 bg-cias-laranja/10 px-4 py-3 text-sm text-cias-texto">
+    <div className="flex items-start gap-3 rounded-lg border border-cias-laranja/40 bg-cias-laranja/10 px-4 py-3 text-sm text-cias-texto">
       <AlertTriangle size={18} className="mt-0.5 shrink-0 text-cias-laranja" />
       <div>
         <strong>Supabase não configurado.</strong> Defina <code>VITE_SUPABASE_URL</code> e{' '}
-        <code>VITE_SUPABASE_ANON_KEY</code> (arquivo <code>.env</code> ou secrets do deploy). Veja o README.
+        <code>VITE_SUPABASE_ANON_KEY</code> (arquivo <code>.env</code> ou variáveis do deploy). Veja o README.
       </div>
     </div>
   )

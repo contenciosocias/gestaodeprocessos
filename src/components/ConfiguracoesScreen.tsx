@@ -74,7 +74,7 @@ function OabsBlock() {
   }
 
   return (
-    <section className="rounded-xl border border-cias-borda bg-cias-base p-5">
+    <section className="rounded-xl border border-cias-borda bg-cias-base p-5 shadow-sm">
       <h2 className="text-base font-semibold text-cias-texto">Advogados monitorados (OABs)</h2>
       <p className="mt-1 text-sm text-cias-texto2">
         Lista global — cíveis e trabalhistas juntas. A área de cada intimação vem sempre do processo, nunca da OAB.
@@ -184,7 +184,7 @@ function ApisBlock() {
   }
 
   return (
-    <section className="rounded-xl border border-cias-borda bg-cias-base p-5">
+    <section className="rounded-xl border border-cias-borda bg-cias-base p-5 shadow-sm">
       <h2 className="text-base font-semibold text-cias-texto">APIs (DJEn e Datajud)</h2>
       <p className="mt-1 text-sm text-cias-texto2">
         Atualize a configuração caso as APIs mudem, sem mexer no código. As Edge Functions leem destes valores (com defaults de fallback).
