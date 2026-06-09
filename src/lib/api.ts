@@ -14,7 +14,7 @@ import type {
 } from '../types'
 
 const DEZ_MINUTOS_MS = 10 * 60 * 1000
-const JANELA_INTIMACOES_DIAS = 60 // a aba de Intimações mostra só os últimos 60 dias (por data de disponibilização)
+const JANELA_INTIMACOES_DIAS = 90 // a aba de Intimações mostra só os últimos 90 dias (por data de disponibilização)
 
 export class CnjDuplicadoError extends Error {
   constructor() {

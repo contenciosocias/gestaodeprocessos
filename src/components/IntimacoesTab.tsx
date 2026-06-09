@@ -70,7 +70,7 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
 
   return (
     <>
-      <PageHeader titulo="Intimações" perfil={perfil} subtitulo="Apenas intimações dos últimos 60 dias" />
+      <PageHeader titulo="Intimações" perfil={perfil} subtitulo="Apenas dos últimos 90 dias" />
       {carregando ? (
         <EstadoCentral icone={<Loader2 className="animate-spin" />} texto="Carregando intimações…" />
       ) : erro ? (
