@@ -60,7 +60,13 @@ export interface AppConfig {
   updated_at: string
 }
 
-// Linha (de intimacao) já com o número CNJ do processo embutido, para a lista.
+// Linha (de intimacao) já com dados do processo embutidos, para a lista.
 export interface IntimacaoComProcesso extends Intimacao {
-  processo?: { numero_cnj: string; perfil: Perfil } | null
+  processo?: {
+    numero_cnj: string
+    perfil: Perfil
+    classe: string | null
+    posicao_cias: string | null
+    rotulo: string | null
+  } | null
 }

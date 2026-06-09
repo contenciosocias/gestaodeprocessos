@@ -5,6 +5,7 @@ import { listIntimacoesByPerfil, updateIntimacao } from '../lib/api'
 import { classificarPrazo, formatDateBR, limparTeor } from '../lib/format'
 import { PageHeader } from './PageHeader'
 import { TeorModal } from './TeorModal'
+import { Tag } from './Badge'
 
 const STATUS_OPCOES: StatusIntimacao[] = ['nova', 'lida', 'providenciada']
 const STATUS_LABEL: Record<StatusIntimacao, string> = { nova: 'Nova', lida: 'Lida', providenciada: 'Providenciada' }
@@ -24,6 +25,15 @@ const STATUS_ACCENT: Record<StatusIntimacao, string> = {
 }
 
 type Patch = Partial<Pick<IntimacaoComProcesso, 'status' | 'prazo_fatal' | 'observacao'>>
+
+// Monta "polo ativo v. polo passivo" a partir do polo do CIAS e da parte contrária.
+// Ex.: CIAS ativo + "José" => "CIAS v. José"; CIAS passivo => "José v. CIAS".
+function partesProcesso(posicao: string | null | undefined, rotulo: string | null | undefined): string {
+  const adverso = rotulo?.trim()
+  if (posicao === 'ativo') return adverso ? `CIAS v. ${adverso}` : 'CIAS'
+  if (posicao === 'passivo') return adverso ? `${adverso} v. CIAS` : 'CIAS'
+  return adverso ? `CIAS · ${adverso}` : 'CIAS'
+}
 
 export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refreshSignal: number }) {
   const [intimacoes, setIntimacoes] = useState<IntimacaoComProcesso[]>([])
@@ -102,15 +112,17 @@ function IntimacaoCard({
         {/* Esquerda: dados + inteiro teor (compacto) */}
         <div className="min-w-0 flex-1 space-y-3">
           <div className="space-y-1">
-            <div className="text-base font-semibold text-cias-texto">
-              {i.numero_processo || i.processo?.numero_cnj || '—'}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-base font-semibold text-cias-texto">
+                {i.numero_processo || i.processo?.numero_cnj || '—'}
+              </span>
+              {i.processo?.classe && <Tag>{i.processo.classe}</Tag>}
             </div>
-            <div className="text-sm text-cias-texto2">
-              <span className="font-medium text-cias-texto">{i.sigla_tribunal || '—'}</span>
-              {i.nome_orgao ? <span> · {i.nome_orgao}</span> : null}
+            <div className="text-sm font-medium text-cias-texto">
+              {partesProcesso(i.processo?.posicao_cias, i.processo?.rotulo)}
             </div>
             <div className="pt-0.5 text-xs text-cias-texto2">
-              <span className="font-semibold uppercase tracking-wide text-cias-texto3">Disponib.</span> ·{' '}
+              <span className="font-semibold uppercase tracking-wide text-cias-texto3">Disponibilização</span> ·{' '}
               {formatDateBR(i.data_disponibilizacao)}
             </div>
           </div>

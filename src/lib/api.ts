@@ -188,7 +188,7 @@ export async function deleteProcesso(id: string): Promise<void> {
 export async function listIntimacoesByPerfil(perfil: Perfil): Promise<IntimacaoComProcesso[]> {
   const { data, error } = await supabase
     .from('intimacoes')
-    .select('*, processo:processos!inner(numero_cnj, perfil)')
+    .select('*, processo:processos!inner(numero_cnj, perfil, classe, posicao_cias, rotulo)')
     .eq('processo.perfil', perfil)
     .order('data_disponibilizacao', { ascending: false })
     .order('created_at', { ascending: false })
