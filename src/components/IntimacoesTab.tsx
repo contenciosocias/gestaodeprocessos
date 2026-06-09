@@ -104,21 +104,9 @@ function IntimacaoCard({
               <span className="font-medium text-cias-texto">{i.sigla_tribunal || '—'}</span>
               {i.nome_orgao ? <span> · {i.nome_orgao}</span> : null}
             </div>
-            <div className="flex flex-wrap gap-x-5 gap-y-0.5 pt-0.5 text-xs text-cias-texto2">
-              <span>
-                <span className="font-semibold uppercase tracking-wide text-cias-texto3">Tipo</span> ·{' '}
-                {i.tipo_comunicacao || '—'}
-              </span>
-              <span>
-                <span className="font-semibold uppercase tracking-wide text-cias-texto3">Disponib.</span> ·{' '}
-                {formatDateBR(i.data_disponibilizacao)}
-              </span>
-              {i.destinatario_advogado && (
-                <span>
-                  <span className="font-semibold uppercase tracking-wide text-cias-texto3">Adv.</span> ·{' '}
-                  {i.destinatario_advogado}
-                </span>
-              )}
+            <div className="pt-0.5 text-xs text-cias-texto2">
+              <span className="font-semibold uppercase tracking-wide text-cias-texto3">Disponib.</span> ·{' '}
+              {formatDateBR(i.data_disponibilizacao)}
             </div>
           </div>
 
