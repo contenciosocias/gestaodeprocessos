@@ -171,6 +171,15 @@ export async function updateProcesso(
   if (error) throw error
 }
 
+/**
+ * Exclui um processo. Se for principal, o ON DELETE CASCADE do banco remove
+ * também os apensos e, em todos eles, as intimações e movimentações vinculadas.
+ */
+export async function deleteProcesso(id: string): Promise<void> {
+  const { error } = await supabase.from('processos').delete().eq('id', id)
+  if (error) throw error
+}
+
 // ---------------------------------------------------------------------------
 // Intimações
 // ---------------------------------------------------------------------------

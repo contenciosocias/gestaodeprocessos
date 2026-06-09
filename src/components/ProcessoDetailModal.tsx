@@ -22,11 +22,13 @@ interface Props {
   onChanged: () => void
   /** Abre a janela de detalhes de outro processo (ex.: um apenso). */
   onOpenProcesso: (p: Processo) => void
+  /** Exclui o processo (a confirmação/cascata fica a cargo de quem passa o handler). */
+  onExcluir?: (p: Processo) => void
 }
 
 const PERFIL_LABEL = { civel: 'Cível', trabalhista: 'Trabalhista' } as const
 
-export function ProcessoDetailModal({ processo, onClose, onChanged, onOpenProcesso }: Props) {
+export function ProcessoDetailModal({ processo, onClose, onChanged, onOpenProcesso, onExcluir }: Props) {
   const ehPrincipal = processo.processo_principal_id === null
   const [proc, setProc] = useState<Processo>(processo)
   const [apensos, setApensos] = useState<Processo[]>([])
@@ -143,6 +145,18 @@ export function ProcessoDetailModal({ processo, onClose, onChanged, onOpenProces
         <Secao titulo="Movimentações realizadas">
           <MovimentacoesSection processoId={processo.id} />
         </Secao>
+
+        {/* Exclusão */}
+        {onExcluir && (
+          <div className="border-t border-cias-borda pt-5">
+            <button
+              onClick={() => onExcluir(proc)}
+              className="inline-flex items-center gap-2 rounded-lg border border-cias-vermelho/40 px-3 py-2 text-sm font-medium text-cias-vermelho transition hover:bg-cias-vermelho/10"
+            >
+              <Trash2 size={15} /> Excluir {ehPrincipal ? 'processo (e apensos)' : 'apenso'}
+            </button>
+          </div>
+        )}
       </div>
     </Modal>
   )

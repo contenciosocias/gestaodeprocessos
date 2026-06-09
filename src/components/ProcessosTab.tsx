@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronDown, ChevronRight, Loader2, Plus } from 'lucide-react'
+import { ChevronDown, ChevronRight, Loader2, Plus, Trash2 } from 'lucide-react'
 import type { Perfil, Processo } from '../types'
-import { CnjDuplicadoError, createPrincipal, listApensos, listPrincipais } from '../lib/api'
+import { CnjDuplicadoError, createPrincipal, deleteProcesso, listApensos, listPrincipais } from '../lib/api'
 import { Tag } from './Badge'
 import { ProcessoDetailModal } from './ProcessoDetailModal'
 
@@ -59,6 +59,22 @@ export function ProcessosTab({ perfil }: { perfil: Perfil }) {
     carregarPrincipais()
     for (const id of expandidos) void carregarApensos(id)
   }, [carregarPrincipais, carregarApensos, expandidos])
+
+  async function excluir(p: Processo) {
+    const ehPrincipal = p.processo_principal_id === null
+    const msg = ehPrincipal
+      ? `Excluir o processo principal ${p.numero_cnj}?\n\nIsso remove também TODOS os apensos vinculados e todas as intimações e movimentações desses processos. Esta ação é permanente.`
+      : `Excluir o apenso ${p.numero_cnj}?\n\nIsso remove as intimações e movimentações vinculadas a ele. Esta ação é permanente.`
+    if (!confirm(msg)) return
+    try {
+      await deleteProcesso(p.id)
+      if (processoAberto?.id === p.id) setProcessoAberto(null)
+      carregarPrincipais()
+      for (const id of expandidos) void carregarApensos(id)
+    } catch (e) {
+      alert('Não foi possível excluir o processo: ' + String((e as Error)?.message ?? e))
+    }
+  }
 
   async function cadastrar() {
     setErroCadastro(null)
@@ -137,6 +153,7 @@ export function ProcessosTab({ perfil }: { perfil: Perfil }) {
                     filhos={filhos}
                     onToggle={() => toggleExpand(p.id)}
                     onAbrir={setProcessoAberto}
+                    onExcluir={excluir}
                   />
                 )
               })}
@@ -154,6 +171,7 @@ export function ProcessosTab({ perfil }: { perfil: Perfil }) {
           onClose={() => setProcessoAberto(null)}
           onChanged={aoMudar}
           onOpenProcesso={setProcessoAberto}
+          onExcluir={excluir}
         />
       )}
     </div>
@@ -166,12 +184,14 @@ function FragmentRow({
   filhos,
   onToggle,
   onAbrir,
+  onExcluir,
 }: {
   principal: Processo
   aberto: boolean
   filhos: Processo[] | undefined
   onToggle: () => void
   onAbrir: (p: Processo) => void
+  onExcluir: (p: Processo) => void
 }) {
   return (
     <>
@@ -189,13 +209,23 @@ function FragmentRow({
         <td className="px-4 py-3 text-cias-texto2">{principal.classe || '—'}</td>
         <td className="px-4 py-3 text-cias-texto2">{principal.orgao_julgador || '—'}</td>
         <td className="px-4 py-3 text-cias-texto2">{principal.posicao_cias || '—'}</td>
-        <td className="px-4 py-3 text-right">
-          <button
-            onClick={() => onAbrir(principal)}
-            className="rounded-md px-3 py-1.5 text-xs font-medium text-cias-vermelho hover:bg-cias-superficie2"
-          >
-            Detalhes
-          </button>
+        <td className="px-4 py-3">
+          <div className="flex items-center justify-end gap-1">
+            <button
+              onClick={() => onAbrir(principal)}
+              className="rounded-md px-3 py-1.5 text-xs font-medium text-cias-vermelho hover:bg-cias-superficie2"
+            >
+              Detalhes
+            </button>
+            <button
+              onClick={() => onExcluir(principal)}
+              title="Excluir processo"
+              aria-label="Excluir processo"
+              className="rounded-md p-1.5 text-cias-texto2 transition hover:bg-cias-superficie2 hover:text-cias-vermelho"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
         </td>
       </tr>
 
@@ -217,12 +247,22 @@ function FragmentRow({
                       <span className="text-sm font-medium text-cias-texto">{a.numero_cnj}</span>
                       {a.classe && <Tag>{a.classe}</Tag>}
                     </div>
-                    <button
-                      onClick={() => onAbrir(a)}
-                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-cias-vermelho hover:bg-cias-superficie2"
-                    >
-                      Detalhes <ChevronRight size={13} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => onAbrir(a)}
+                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-cias-vermelho hover:bg-cias-superficie2"
+                      >
+                        Detalhes <ChevronRight size={13} />
+                      </button>
+                      <button
+                        onClick={() => onExcluir(a)}
+                        title="Excluir apenso"
+                        aria-label="Excluir apenso"
+                        className="rounded-md p-1.5 text-cias-texto2 transition hover:bg-cias-superficie2 hover:text-cias-vermelho"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
