@@ -1,4 +1,5 @@
 import type { StatusIntimacao } from '../types'
+import { classificarPrazo, formatDateBR } from '../lib/format'
 
 const STATUS_LABEL: Record<StatusIntimacao, string> = {
   nova: 'Nova',
@@ -45,6 +46,29 @@ export function Tag({ children }: { children: React.ReactNode }) {
   return (
     <span className="inline-flex items-center rounded-md bg-cias-superficie2 px-2 py-0.5 text-xs font-medium text-cias-texto2 ring-1 ring-inset ring-cias-borda">
       {children}
+    </span>
+  )
+}
+
+// Prazo fatal: vencido (vermelho), próximo ≤ 3 dias (laranja), ok (neutro). Sem prazo => "—".
+const PRAZO_CLASS: Record<'vencido' | 'proximo' | 'ok', string> = {
+  vencido: 'bg-cias-vermelho/12 text-cias-vermelho ring-1 ring-inset ring-cias-vermelho/30',
+  proximo: 'bg-cias-laranja/12 text-cias-laranja ring-1 ring-inset ring-cias-laranja/30',
+  ok: 'bg-cias-superficie2 text-cias-texto2 ring-1 ring-inset ring-cias-borda',
+}
+
+/** Indicador de prazo fatal: data formatada, colorida pela urgência (classificarPrazo). */
+export function PrazoFatalBadge({ prazo }: { prazo: string | null | undefined }) {
+  const status = classificarPrazo(prazo)
+  if (!status) return <span className="text-cias-texto3">—</span>
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${PRAZO_CLASS[status]}`}
+      title={
+        status === 'vencido' ? 'Prazo vencido' : status === 'proximo' ? 'Prazo próximo (≤ 3 dias)' : 'Prazo fatal'
+      }
+    >
+      {formatDateBR(prazo)}
     </span>
   )
 }
