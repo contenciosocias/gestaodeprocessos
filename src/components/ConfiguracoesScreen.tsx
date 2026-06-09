@@ -8,9 +8,6 @@ export function ConfiguracoesScreen() {
     <div className="mx-auto max-w-4xl space-y-8">
       <div>
         <h1 className="text-xl font-bold text-cias-texto">Configurações</h1>
-        <p className="mt-1 text-sm text-cias-texto2">
-          Área global, fora da divisão Cível/Trabalhista. Selecione um perfil no topo para voltar aos casos.
-        </p>
       </div>
       <OabsBlock />
       <ApisBlock />
@@ -83,10 +80,7 @@ function OabsBlock() {
 
   return (
     <section className="rounded-xl border border-cias-borda bg-cias-base p-5 shadow-sm">
-      <h2 className="text-base font-semibold text-cias-texto">Advogados monitorados (OABs)</h2>
-      <p className="mt-1 text-sm text-cias-texto2">
-        Lista global — cíveis e trabalhistas juntas. A área de cada intimação vem sempre do processo, nunca da OAB.
-      </p>
+      <h2 className="text-base font-semibold text-cias-texto">OABs monitoradas</h2>
 
       {/* Adicionar */}
       <div className="mt-4 flex flex-wrap items-end gap-2">
@@ -195,10 +189,7 @@ function ApisBlock() {
 
   return (
     <section className="rounded-xl border border-cias-borda bg-cias-base p-5 shadow-sm">
-      <h2 className="text-base font-semibold text-cias-texto">APIs (DJEn e Datajud)</h2>
-      <p className="mt-1 text-sm text-cias-texto2">
-        Atualize a configuração caso as APIs mudem, sem mexer no código. As Edge Functions leem destes valores (com defaults de fallback).
-      </p>
+      <h2 className="text-base font-semibold text-cias-texto">APIs</h2>
 
       {carregando ? (
         <p className="mt-4 text-sm text-cias-texto2">Carregando…</p>
