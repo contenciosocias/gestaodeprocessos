@@ -45,6 +45,7 @@ function stripHtml(texto: unknown): string | null {
   let s = String(texto)
   if (s.includes('<')) {
     s = s
+      .replace(/<(style|script)[^>]*>[\s\S]*?<\/\1>/gi, ' ') // remove blocos de estilo/script (e seu conteúdo)
       .replace(/<\s*(br|\/p|\/div|\/tr|\/li)\s*\/?>/gi, '\n')
       .replace(/<[^>]+>/g, ' ')
   }

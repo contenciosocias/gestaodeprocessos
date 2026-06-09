@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
-import { ExternalLink, FileText, Loader2 } from 'lucide-react'
+import { ExternalLink, Loader2 } from 'lucide-react'
 import type { IntimacaoComProcesso, Perfil, StatusIntimacao } from '../types'
 import { listIntimacoesByPerfil, updateIntimacao } from '../lib/api'
-import { classificarPrazo, formatDateBR, trecho } from '../lib/format'
-import { TeorModal } from './TeorModal'
+import { classificarPrazo, formatDateBR, limparTeor } from '../lib/format'
 import { PageHeader } from './PageHeader'
 
 const STATUS_OPCOES: StatusIntimacao[] = ['nova', 'lida', 'providenciada']
@@ -16,11 +15,19 @@ const STATUS_SELECT_CLASS: Record<StatusIntimacao, string> = {
   providenciada: 'text-cias-sucesso border-cias-sucesso/40',
 }
 
+// Faixa de acento à esquerda do card conforme o status.
+const STATUS_ACCENT: Record<StatusIntimacao, string> = {
+  nova: 'border-l-cias-laranja',
+  lida: 'border-l-cias-borda',
+  providenciada: 'border-l-cias-sucesso',
+}
+
+type Patch = Partial<Pick<IntimacaoComProcesso, 'status' | 'prazo_fatal' | 'observacao'>>
+
 export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refreshSignal: number }) {
   const [intimacoes, setIntimacoes] = useState<IntimacaoComProcesso[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
-  const [teorAberto, setTeorAberto] = useState<IntimacaoComProcesso | null>(null)
 
   useEffect(() => {
     let vivo = true
@@ -36,11 +43,11 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
   }, [perfil, refreshSignal])
 
   // Atualização otimista de um dos 3 campos editáveis.
-  function patchLocal(id: string, patch: Partial<IntimacaoComProcesso>) {
+  function patchLocal(id: string, patch: Patch) {
     setIntimacoes((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)))
   }
 
-  async function salvar(id: string, patch: Partial<Pick<IntimacaoComProcesso, 'status' | 'prazo_fatal' | 'observacao'>>) {
+  async function salvar(id: string, patch: Patch) {
     const anterior = intimacoes.find((i) => i.id === id)
     patchLocal(id, patch)
     try {
@@ -61,104 +68,137 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
       ) : intimacoes.length === 0 ? (
         <EstadoCentral texto="Nenhuma intimação ainda. Cadastre OABs e processos; as intimações aparecem após a sincronização." />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-cias-borda bg-cias-base shadow-sm">
-        <table className="w-full min-w-[1000px] border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-cias-borda bg-cias-superficie/70 text-left text-[11px] font-semibold uppercase tracking-wider text-cias-texto3">
-              <th className="px-4 py-3">Processo</th>
-              <th className="px-4 py-3">Órgão / Tribunal</th>
-              <th className="px-4 py-3">Tipo</th>
-              <th className="px-4 py-3">Disponib.</th>
-              <th className="px-4 py-3">Teor</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Prazo fatal</th>
-              <th className="px-4 py-3">Observação</th>
-            </tr>
-          </thead>
-          <tbody>
-            {intimacoes.map((i) => {
-              const prazo = i.status !== 'providenciada' ? classificarPrazo(i.prazo_fatal) : null
-              const prazoVermelho = prazo === 'vencido' || prazo === 'proximo'
-              return (
-                <tr key={i.id} className="border-b border-cias-borda/70 align-top last:border-0 hover:bg-cias-superficie/60">
-                  <td className="px-4 py-3 font-medium text-cias-texto">{i.numero_processo || i.processo?.numero_cnj || '—'}</td>
-                  <td className="px-4 py-3 text-cias-texto2">
-                    <div className="font-medium text-cias-texto">{i.sigla_tribunal || '—'}</div>
-                    <div className="text-xs">{i.nome_orgao || ''}</div>
-                  </td>
-                  <td className="px-4 py-3 text-cias-texto2">{i.tipo_comunicacao || '—'}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-cias-texto2">{formatDateBR(i.data_disponibilizacao)}</td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => setTeorAberto(i)}
-                      className="group flex max-w-xs items-start gap-1.5 text-left text-cias-texto2 hover:text-cias-texto"
-                      title="Abrir teor completo"
-                    >
-                      <FileText size={14} className="mt-0.5 shrink-0 text-cias-texto2 group-hover:text-cias-vermelho" />
-                      <span className="line-clamp-2">{trecho(i.teor, 120)}</span>
-                    </button>
-                    {i.link_certidao && (
-                      <a
-                        href={i.link_certidao}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 inline-flex items-center gap-1 text-xs text-cias-vermelho hover:underline"
-                      >
-                        <ExternalLink size={12} /> certidão
-                      </a>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={i.status}
-                      onChange={(e) => salvar(i.id, { status: e.target.value as StatusIntimacao })}
-                      className={`rounded-md border bg-cias-base px-2 py-1 text-xs font-medium ${STATUS_SELECT_CLASS[i.status]}`}
-                    >
-                      {STATUS_OPCOES.map((s) => (
-                        <option key={s} value={s} className="text-cias-texto">
-                          {STATUS_LABEL[s]}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-4 py-3">
-                    <input
-                      type="date"
-                      value={i.prazo_fatal ?? ''}
-                      onChange={(e) => salvar(i.id, { prazo_fatal: e.target.value || null })}
-                      className={[
-                        'rounded-md border bg-cias-base px-2 py-1 text-xs',
-                        prazoVermelho
-                          ? 'border-cias-vermelho text-cias-vermelho font-semibold'
-                          : 'border-cias-borda text-cias-texto',
-                      ].join(' ')}
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <input
-                      type="text"
-                      // key no valor já salvo: se o save falhar e o estado reverter,
-                      // o input remonta e volta a exibir o valor persistido.
-                      key={`obs-${i.id}-${i.observacao ?? ''}`}
-                      defaultValue={i.observacao ?? ''}
-                      onBlur={(e) => {
-                        const v = e.target.value.trim() || null
-                        if (v !== (i.observacao ?? null)) salvar(i.id, { observacao: v })
-                      }}
-                      placeholder="—"
-                      className="w-44 rounded-md border border-cias-borda bg-cias-base px-2 py-1 text-xs text-cias-texto"
-                    />
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <div className="space-y-4">
+          {intimacoes.map((i) => (
+            <IntimacaoCard key={i.id} intimacao={i} onSalvar={salvar} />
+          ))}
         </div>
       )}
-
-      <TeorModal intimacao={teorAberto} onClose={() => setTeorAberto(null)} />
     </>
+  )
+}
+
+function IntimacaoCard({
+  intimacao: i,
+  onSalvar,
+}: {
+  intimacao: IntimacaoComProcesso
+  onSalvar: (id: string, patch: Patch) => void
+}) {
+  const prazo = i.status !== 'providenciada' ? classificarPrazo(i.prazo_fatal) : null
+  const prazoVermelho = prazo === 'vencido' || prazo === 'proximo'
+  const teor = limparTeor(i.teor)
+
+  return (
+    <article
+      className={`overflow-hidden rounded-xl border border-l-4 border-cias-borda bg-cias-base shadow-sm ${STATUS_ACCENT[i.status]}`}
+    >
+      {/* Topo: dados (esquerda) | controles (direita) */}
+      <div className="flex flex-col gap-5 p-5 md:flex-row md:items-start md:gap-6">
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="text-base font-semibold text-cias-texto">
+            {i.numero_processo || i.processo?.numero_cnj || '—'}
+          </div>
+          <div className="text-sm text-cias-texto2">
+            <span className="font-medium text-cias-texto">{i.sigla_tribunal || '—'}</span>
+            {i.nome_orgao ? <span> · {i.nome_orgao}</span> : null}
+          </div>
+          <div className="flex flex-wrap gap-x-6 gap-y-1 pt-1 text-xs text-cias-texto2">
+            <span>
+              <span className="font-semibold uppercase tracking-wide text-cias-texto3">Tipo</span> ·{' '}
+              {i.tipo_comunicacao || '—'}
+            </span>
+            <span>
+              <span className="font-semibold uppercase tracking-wide text-cias-texto3">Disponib.</span> ·{' '}
+              {formatDateBR(i.data_disponibilizacao)}
+            </span>
+            {i.destinatario_advogado && (
+              <span>
+                <span className="font-semibold uppercase tracking-wide text-cias-texto3">Adv.</span> ·{' '}
+                {i.destinatario_advogado}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Divisória vertical */}
+        <div className="hidden w-px self-stretch bg-cias-borda md:block" />
+
+        {/* Controles editáveis */}
+        <div className="space-y-3 md:w-72 md:shrink-0">
+          <ControleCampo label="Status">
+            <select
+              value={i.status}
+              onChange={(e) => onSalvar(i.id, { status: e.target.value as StatusIntimacao })}
+              className={`w-full rounded-md border bg-cias-base px-2 py-1.5 text-sm font-medium ${STATUS_SELECT_CLASS[i.status]}`}
+            >
+              {STATUS_OPCOES.map((s) => (
+                <option key={s} value={s} className="text-cias-texto">
+                  {STATUS_LABEL[s]}
+                </option>
+              ))}
+            </select>
+          </ControleCampo>
+
+          <ControleCampo label="Prazo fatal">
+            <input
+              type="date"
+              value={i.prazo_fatal ?? ''}
+              onChange={(e) => onSalvar(i.id, { prazo_fatal: e.target.value || null })}
+              className={[
+                'w-full rounded-md border bg-cias-base px-2 py-1.5 text-sm',
+                prazoVermelho
+                  ? 'border-cias-vermelho font-semibold text-cias-vermelho'
+                  : 'border-cias-borda text-cias-texto',
+              ].join(' ')}
+            />
+          </ControleCampo>
+
+          <ControleCampo label="Observação">
+            <input
+              type="text"
+              key={`obs-${i.id}-${i.observacao ?? ''}`}
+              defaultValue={i.observacao ?? ''}
+              onBlur={(e) => {
+                const v = e.target.value.trim() || null
+                if (v !== (i.observacao ?? null)) onSalvar(i.id, { observacao: v })
+              }}
+              placeholder="—"
+              className="w-full rounded-md border border-cias-borda bg-cias-base px-2 py-1.5 text-sm text-cias-texto"
+            />
+          </ControleCampo>
+        </div>
+      </div>
+
+      {/* Inteiro teor */}
+      <div className="border-t border-cias-borda bg-cias-superficie/50 px-5 py-4">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-cias-texto3">Inteiro teor</span>
+          {i.link_certidao && (
+            <a
+              href={i.link_certidao}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-medium text-cias-vermelho hover:underline"
+            >
+              <ExternalLink size={12} /> certidão
+            </a>
+          )}
+        </div>
+        <div className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg border border-cias-borda bg-cias-base p-4 text-sm leading-relaxed text-cias-texto">
+          {teor || 'Sem teor disponível.'}
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function ControleCampo({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-cias-texto3">{label}</span>
+      {children}
+    </label>
   )
 }
 

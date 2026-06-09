@@ -35,8 +35,23 @@ export function decodeHtmlEntities(s: string | null | undefined): string {
   return el.value
 }
 
+/** Decodifica entidades e remove ruído (tags/CSS que vazam) do teor para exibição. */
+export function limparTeor(s: string | null | undefined): string {
+  if (!s) return ''
+  let t = decodeHtmlEntities(s)
+  t = t.replace(/<(style|script)[^>]*>[\s\S]*?<\/\1>/gi, ' ') // blocos de estilo/script
+  t = t.replace(/<[^>]+>/g, ' ') // tags residuais
+  t = t.replace(/[^\s{}]*\{[^{}]*\}/g, ' ') // remove blocos "{ ... }" (CSS vazado) e seletor anexo — seguro contra backtracking
+  t = t
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ ?\n ?/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  return t
+}
+
 export function trecho(texto: string | null | undefined, max = 160): string {
   if (!texto) return '—'
-  const limpo = decodeHtmlEntities(texto).replace(/\s+/g, ' ').trim()
+  const limpo = limparTeor(texto).replace(/\s+/g, ' ').trim()
   return limpo.length > max ? limpo.slice(0, max).trimEnd() + '…' : limpo
 }
