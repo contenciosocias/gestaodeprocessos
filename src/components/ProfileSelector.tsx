@@ -18,7 +18,7 @@ const OPCOES: { valor: Perfil; rotulo: string }[] = [
  */
 export function ProfileSelector({ perfil, emCasos, onSelect }: ProfileSelectorProps) {
   return (
-    <div className="inline-flex rounded-lg border border-cias-borda bg-cias-superficie2 p-1">
+    <div className="flex w-full rounded-lg border border-cias-borda bg-cias-superficie2 p-1">
       {OPCOES.map((op) => {
         const ativo = emCasos && perfil === op.valor
         return (
@@ -27,7 +27,7 @@ export function ProfileSelector({ perfil, emCasos, onSelect }: ProfileSelectorPr
             onClick={() => onSelect(op.valor)}
             aria-pressed={ativo}
             className={[
-              'rounded-md px-5 py-2 text-sm font-semibold transition',
+              'flex-1 rounded-md px-3 py-1.5 text-sm font-semibold transition',
               ativo
                 ? 'bg-cias-base text-cias-vermelho shadow-sm'
                 : 'text-cias-texto2 hover:text-cias-texto',

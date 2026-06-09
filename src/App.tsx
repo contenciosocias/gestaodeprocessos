@@ -4,7 +4,6 @@ import type { Perfil } from './types'
 import { isSupabaseConfigured } from './lib/supabase'
 import { getLastSyncAt, maybeSync } from './lib/api'
 import { Sidebar } from './components/Sidebar'
-import { Topbar } from './components/Topbar'
 import { IntimacoesTab } from './components/IntimacoesTab'
 import { ProcessosTab } from './components/ProcessosTab'
 import { ConfiguracoesScreen } from './components/ConfiguracoesScreen'
@@ -57,20 +56,16 @@ export default function App() {
       <Sidebar
         view={view}
         aba={aba}
+        perfil={perfil}
+        onSelectPerfil={selecionarPerfil}
         onSelectAba={selecionarAba}
         onOpenConfig={() => setView('config')}
+        onAtualizar={() => void sincronizar(true)}
+        sincronizando={sincronizando}
         lastSyncAt={lastSyncAt}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar
-          perfil={perfil}
-          emCasos={view === 'cases'}
-          onSelectPerfil={selecionarPerfil}
-          onAtualizar={() => void sincronizar(true)}
-          sincronizando={sincronizando}
-        />
-
         <main className="flex-1">
           <div className="mx-auto max-w-screen-2xl px-6 py-6">
             {!isSupabaseConfigured ? (

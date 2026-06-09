@@ -1,4 +1,6 @@
-import { Inbox, Briefcase, Settings } from 'lucide-react'
+import { Inbox, Briefcase, Settings, RefreshCw } from 'lucide-react'
+import type { Perfil } from '../types'
+import { ProfileSelector } from './ProfileSelector'
 import { formatDateBR } from '../lib/format'
 
 type View = 'cases' | 'config'
@@ -7,22 +9,36 @@ type Aba = 'intimacoes' | 'processos'
 interface SidebarProps {
   view: View
   aba: Aba
+  perfil: Perfil
+  onSelectPerfil: (p: Perfil) => void
   onSelectAba: (aba: Aba) => void
   onOpenConfig: () => void
+  onAtualizar: () => void
+  sincronizando: boolean
   lastSyncAt: string | null
 }
 
 const LOGO = `${import.meta.env.BASE_URL}logo-cias-header.png`
 
-export function Sidebar({ view, aba, onSelectAba, onOpenConfig, lastSyncAt }: SidebarProps) {
+export function Sidebar({
+  view,
+  aba,
+  perfil,
+  onSelectPerfil,
+  onSelectAba,
+  onOpenConfig,
+  onAtualizar,
+  sincronizando,
+  lastSyncAt,
+}: SidebarProps) {
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-cias-borda bg-cias-base">
-      {/* Logo do CIAS */}
-      <div className="border-b border-cias-borda px-5 py-4">
-        <img src={LOGO} alt="CIAS — Consórcio Aliança para a Saúde" className="h-12 w-auto" />
-        <p className="mt-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-cias-texto3">
-          Contencioso · Gestão Processual
-        </p>
+      {/* Logo + seletor de perfil (Cível / Trabalhista) */}
+      <div className="border-b border-cias-borda px-5 pb-4 pt-4">
+        <img src={LOGO} alt="CIAS — Consórcio Aliança para a Saúde" className="h-11 w-auto" />
+        <div className="mt-4">
+          <ProfileSelector perfil={perfil} emCasos={view === 'cases'} onSelect={onSelectPerfil} />
+        </div>
       </div>
 
       {/* Navegação */}
@@ -41,20 +57,26 @@ export function Sidebar({ view, aba, onSelectAba, onOpenConfig, lastSyncAt }: Si
         />
       </nav>
 
-      {/* Rodapé: Configurações + última sincronização */}
-      <div className="space-y-2 border-t border-cias-borda px-3 py-3">
+      {/* Rodapé: Configurações, Atualizar agora e última sincronização */}
+      <div className="space-y-3 border-t border-cias-borda px-3 py-3">
         <NavItem
           icon={<Settings size={18} />}
           label="Configurações"
           active={view === 'config'}
           onClick={onOpenConfig}
         />
-        <p className="px-3 pt-1 text-[11px] leading-snug text-cias-texto3">
+        <button
+          onClick={onAtualizar}
+          disabled={sincronizando}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-cias-vermelho px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-cias-vermelhoEscuro disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <RefreshCw size={16} className={sincronizando ? 'animate-spin' : ''} />
+          {sincronizando ? 'Atualizando…' : 'Atualizar agora'}
+        </button>
+        <p className="px-1 text-center text-[11px] leading-snug text-cias-texto3">
           {lastSyncAt ? (
             <>
-              Última sincronização
-              <br />
-              <span className="text-cias-texto2">{formatDateBR(lastSyncAt)}</span>
+              Última sincronização: <span className="text-cias-texto2">{formatDateBR(lastSyncAt)}</span>
             </>
           ) : (
             'Sem sincronização ainda'
