@@ -241,9 +241,19 @@ function ApisBlock() {
 // ---------------------------------------------------------------------------
 const TIMEZONE_DEFAULT = 'America/Sao_Paulo'
 
+/** Normaliza o valor salvo (legado "8" ou "HH:MM") para "HH:MM" do <input type="time">. */
+function paraHHMM(v: string | undefined): string {
+  const s = (v ?? '').trim()
+  const hm = s.match(/^(\d{1,2}):(\d{2})$/)
+  if (hm) return `${hm[1].padStart(2, '0')}:${hm[2]}`
+  const n = parseInt(s, 10)
+  if (Number.isFinite(n) && n >= 0 && n <= 23) return `${String(n).padStart(2, '0')}:00`
+  return '08:00'
+}
+
 function DisparoBlock() {
   const [cfg, setCfg] = useState<Record<string, string>>({
-    disparo_hora: '8',
+    disparo_hora: '08:00',
     disparo_timezone: TIMEZONE_DEFAULT,
     disparo_remetente: '',
   })
@@ -256,7 +266,7 @@ function DisparoBlock() {
     getAppConfig()
       .then((all) =>
         setCfg({
-          disparo_hora: all.disparo_hora ?? '8',
+          disparo_hora: paraHHMM(all.disparo_hora),
           disparo_timezone: all.disparo_timezone || TIMEZONE_DEFAULT,
           disparo_remetente: all.disparo_remetente ?? '',
         }),
@@ -281,8 +291,8 @@ function DisparoBlock() {
     setSalvando(true)
     setOk(false)
     try {
-      await setAppConfig('disparo_hora', String(cfg.disparo_hora ?? '8'))
-      await setAppConfig('disparo_timezone', (cfg.disparo_timezone || TIMEZONE_DEFAULT).trim())
+      await setAppConfig('disparo_hora', cfg.disparo_hora || '08:00')
+      await setAppConfig('disparo_timezone', TIMEZONE_DEFAULT)
       await setAppConfig('disparo_remetente', (cfg.disparo_remetente ?? '').trim())
       setOk(true)
     } catch (e) {
@@ -304,49 +314,32 @@ function DisparoBlock() {
   return (
     <section className="rounded-xl border border-cias-borda bg-cias-base p-5 shadow-sm">
       <h2 className="text-base font-semibold text-cias-texto">Disparo de intimações</h2>
-      <p className="mt-1 text-xs text-cias-texto2">
-        Todo dia, no horário abaixo, o sistema busca as intimações e envia um e-mail por área aos responsáveis — com as
-        novidades ou avisando que não há. Cível vai só para os e-mails cíveis; trabalhista, só para os trabalhistas.
-      </p>
 
       {carregando ? (
         <p className="mt-4 text-sm text-cias-texto2">Carregando…</p>
       ) : (
         <div className="mt-4 space-y-5">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="flex flex-wrap items-end gap-3">
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-cias-texto2">Hora do disparo (0–23)</span>
+              <span className="mb-1 block text-xs font-medium text-cias-texto2">Hora do disparo</span>
               <input
-                type="number"
-                min={0}
-                max={23}
+                type="time"
+                step={300}
                 value={cfg.disparo_hora ?? ''}
                 onChange={(e) => setCampo('disparo_hora', e.target.value)}
-                className="w-full rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"
+                className="w-36 rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"
               />
             </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-cias-texto2">Fuso horário</span>
-              <input
-                value={cfg.disparo_timezone ?? ''}
-                onChange={(e) => setCampo('disparo_timezone', e.target.value)}
-                placeholder={TIMEZONE_DEFAULT}
-                className="w-full rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-cias-texto2">E-mail remetente</span>
+            <label className="block min-w-[16rem] flex-1">
+              <span className="mb-1 block text-xs font-medium text-cias-texto2">Remetente</span>
               <input
                 type="email"
                 value={cfg.disparo_remetente ?? ''}
-                onChange={(e) => setCampo('disparo_remetente', e.target.value)}
-                placeholder="verificado no provedor (Brevo)"
-                className="w-full rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"
+                readOnly
+                title="Remetente verificado no provedor (Brevo). Não editável aqui."
+                className="w-full cursor-not-allowed rounded-md border border-cias-borda bg-cias-superficie px-3 py-2 text-sm text-cias-texto2"
               />
             </label>
-          </div>
-
-          <div className="flex items-center gap-3">
             <button
               onClick={salvar}
               disabled={salvando}
@@ -354,18 +347,18 @@ function DisparoBlock() {
             >
               {salvando && <Loader2 size={16} className="animate-spin" />} Salvar
             </button>
-            {ok && <span className="text-sm text-cias-sucesso">Configurações salvas.</span>}
+            {ok && <span className="pb-2 text-sm text-cias-sucesso">Salvo.</span>}
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <ListaEmails
-              titulo="E-mails — Cível"
+              titulo="Destinatários — Cível"
               emails={dests.filter((d) => d.area === 'civel')}
               onAdd={(email) => adicionarEmail('civel', email)}
               onRemove={removerEmail}
             />
             <ListaEmails
-              titulo="E-mails — Trabalhista"
+              titulo="Destinatários — Trabalhista"
               emails={dests.filter((d) => d.area === 'trabalhista')}
               onAdd={(email) => adicionarEmail('trabalhista', email)}
               onRemove={removerEmail}

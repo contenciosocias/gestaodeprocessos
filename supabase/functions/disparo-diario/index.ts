@@ -23,27 +23,18 @@ type Supabase = ReturnType<typeof createClient>
 type Area = 'civel' | 'trabalhista'
 const AREAS: Area[] = ['civel', 'trabalhista']
 const AREA_LABEL: Record<Area, string> = { civel: 'Cível', trabalhista: 'Trabalhista' }
+const AREA_ADJ: Record<Area, string> = { civel: 'cíveis', trabalhista: 'trabalhistas' }
 
 const DEFAULT_HORA = 8
 const DEFAULT_TZ = 'America/Sao_Paulo'
-
-// Paleta do e-mail (independente do Tailwind do front; ver seção 6 do adendo).
-const COR = {
-  vermelho: '#D81E05',
-  laranja: '#F47A1F',
-  texto: '#1A1A1A',
-  texto2: '#6B6B6B',
-  borda: '#E6E4DE',
-  superficie: '#F6F5F2',
-  base: '#FFFFFF',
-}
+const JANELA_MIN = 5 // casa com o intervalo do cron (*/5): dispara no 1º tick em [alvo, alvo + JANELA_MIN)
 
 interface ItemNotificar {
   id: string
   numero_processo: string | null
   sigla_tribunal: string | null
   nome_orgao: string | null
-  tipo_comunicacao: string | null
+  teor: string | null
   data_disponibilizacao: string | null
   link_certidao: string | null
   numero_cnj: string
@@ -69,14 +60,24 @@ Deno.serve(async (req) => {
     // 1) Config.
     const cfg = await lerConfig(supabase)
     const tz = (cfg.disparo_timezone || DEFAULT_TZ).trim() || DEFAULT_TZ
-    const horaConfig = parseHora(cfg.disparo_hora)
+    const alvoMin = parseAlvoMinutos(cfg.disparo_hora)
     const remetente = (cfg.disparo_remetente || '').trim()
-    const { hora, dataISO, dataCurtaBR } = agoraNoFuso(tz)
+    const { hora, minuto, dataISO, dataCurtaBR } = agoraNoFuso(tz)
+    const agoraMin = hora * 60 + minuto
 
     // 2) Guarda de horário / idempotência (ignorada com forcar=true, p/ teste).
+    // Dispara no 1º tick do cron dentro da janela [alvo, alvo + JANELA_MIN).
     if (!forcar) {
-      if (hora !== horaConfig) {
-        return jsonResponse({ ok: true, disparou: false, motivo: 'fora_da_hora', hora_atual: hora, disparo_hora: horaConfig, fuso: tz })
+      const diff = agoraMin - alvoMin
+      if (diff < 0 || diff >= JANELA_MIN) {
+        return jsonResponse({
+          ok: true,
+          disparou: false,
+          motivo: 'fora_da_hora',
+          agora: `${pad2(hora)}:${pad2(minuto)}`,
+          disparo_hora: `${pad2(Math.floor(alvoMin / 60))}:${pad2(alvoMin % 60)}`,
+          fuso: tz,
+        })
       }
       if ((cfg.disparo_ultima_data || '') === dataISO) {
         return jsonResponse({ ok: true, disparou: false, motivo: 'ja_disparou_hoje', data: dataISO })
@@ -95,7 +96,7 @@ Deno.serve(async (req) => {
     const { data: pendentesRaw, error: selErr } = await supabase
       .from('intimacoes')
       .select(
-        'id, numero_processo, sigla_tribunal, nome_orgao, tipo_comunicacao, data_disponibilizacao, link_certidao, ' +
+        'id, numero_processo, sigla_tribunal, nome_orgao, teor, data_disponibilizacao, link_certidao, ' +
           'processo:processos!inner(perfil, numero_cnj, polo_ativo, polo_passivo)',
       )
       .is('notificada_em', null)
@@ -112,7 +113,7 @@ Deno.serve(async (req) => {
         numero_processo: row.numero_processo ?? null,
         sigla_tribunal: row.sigla_tribunal ?? null,
         nome_orgao: row.nome_orgao ?? null,
-        tipo_comunicacao: row.tipo_comunicacao ?? null,
+        teor: row.teor ?? null,
         data_disponibilizacao: row.data_disponibilizacao ?? null,
         link_certidao: row.link_certidao ?? null,
         numero_cnj: proc?.numero_cnj ?? '',
@@ -137,7 +138,7 @@ Deno.serve(async (req) => {
         itens.length > 0
           ? `CIAS — ${itens.length} nova(s) intimação(ões) ${AREA_LABEL[area]} — ${dataCurtaBR}`
           : `CIAS — Sem novas intimações ${AREA_LABEL[area]} — ${dataCurtaBR}`
-      const html = montarEmail(area, dataCurtaBR, itens)
+      const html = montarEmail(area, dataISO, itens)
       try {
         await enviarEmail({ remetente, para: emails, assunto, html })
         if (itens.length > 0) idsEnviados.push(...itens.map((i) => i.id))
@@ -185,13 +186,24 @@ async function lerConfig(supabase: Supabase): Promise<Record<string, string>> {
   return out
 }
 
-function parseHora(v: string | undefined): number {
-  const n = parseInt(String(v ?? ''), 10)
-  return Number.isFinite(n) && n >= 0 && n <= 23 ? n : DEFAULT_HORA
+const pad2 = (n: number): string => String(n).padStart(2, '0')
+
+/** Alvo "HH:MM" (ou legado "8" = só a hora) -> minutos desde a meia-noite. */
+function parseAlvoMinutos(v: string | undefined): number {
+  const s = String(v ?? '').trim()
+  const hm = s.match(/^(\d{1,2}):(\d{2})$/)
+  if (hm) {
+    const h = parseInt(hm[1], 10)
+    const mi = parseInt(hm[2], 10)
+    if (h >= 0 && h <= 23 && mi >= 0 && mi <= 59) return h * 60 + mi
+  }
+  const n = parseInt(s, 10)
+  if (Number.isFinite(n) && n >= 0 && n <= 23) return n * 60
+  return DEFAULT_HORA * 60
 }
 
-/** Hora (0–23) e data no fuso configurado. Cai no default se o fuso for inválido. */
-function agoraNoFuso(tz: string): { hora: number; dataISO: string; dataCurtaBR: string } {
+/** Hora, minuto e data no fuso configurado. Cai no default se o fuso for inválido. */
+function agoraNoFuso(tz: string): { hora: number; minuto: number; dataISO: string; dataCurtaBR: string } {
   const fmt = (zona: string) =>
     new Intl.DateTimeFormat('en-US', {
       timeZone: zona,
@@ -199,6 +211,7 @@ function agoraNoFuso(tz: string): { hora: number; dataISO: string; dataCurtaBR: 
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
+      minute: '2-digit',
       hour12: false,
     }).formatToParts(new Date())
 
@@ -211,10 +224,12 @@ function agoraNoFuso(tz: string): { hora: number; dataISO: string; dataCurtaBR: 
   const get = (t: string) => partes.find((p) => p.type === t)?.value ?? ''
   let hora = parseInt(get('hour'), 10)
   if (!Number.isFinite(hora) || hora === 24) hora = 0 // alguns ambientes emitem "24" à meia-noite
+  let minuto = parseInt(get('minute'), 10)
+  if (!Number.isFinite(minuto)) minuto = 0
   const ano = get('year')
   const mes = get('month')
   const dia = get('day')
-  return { hora, dataISO: `${ano}-${mes}-${dia}`, dataCurtaBR: `${dia}/${mes}` }
+  return { hora, minuto, dataISO: `${ano}-${mes}-${dia}`, dataCurtaBR: `${dia}/${mes}` }
 }
 
 async function listarDestinatarios(supabase: Supabase, area: Area): Promise<string[]> {
@@ -224,14 +239,38 @@ async function listarDestinatarios(supabase: Supabase, area: Area): Promise<stri
 }
 
 // ---------------------------------------------------------------------------
-// E-mail (HTML responsivo, sem logo, na paleta da plataforma)
+// E-mail — HTML sóbrio, limpo e responsivo (sem logo), na paleta da plataforma.
+// Um container único e coeso; tipografia serifada para as partes; inteiro teor.
 // ---------------------------------------------------------------------------
+const C = {
+  vermelho: '#D81E05',
+  texto: '#1A1A1A',
+  texto2: '#52525B',
+  texto3: '#9C9C96',
+  borda: '#E6E4DE',
+  bordaClara: '#EEEDE8',
+  superficie: '#F4F3F0',
+  teorBg: '#FAF9F7',
+  base: '#FFFFFF',
+}
+const SANS = "'Helvetica Neue',Helvetica,Arial,sans-serif"
+const SERIF = "Georgia,'Times New Roman',Times,serif"
+const MESES = [
+  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+]
+
 function esc(s: unknown): string {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+/** Escapa e converte quebras de linha em <br> (para o inteiro teor). */
+function escMultilinha(s: unknown): string {
+  return esc(s).replace(/\r?\n/g, '<br>')
 }
 
 /** 'YYYY-MM-DD' -> 'DD/MM/AAAA' (sem passar por Date, p/ não escorregar de fuso). */
@@ -241,6 +280,13 @@ function dataLongaBR(iso: string | null): string {
   return a && m && d ? `${d}/${m}/${a}` : String(iso)
 }
 
+/** 'YYYY-MM-DD' -> '9 de junho de 2026'. */
+function dataPorExtenso(iso: string): string {
+  const [a, m, d] = iso.split('-').map((x) => parseInt(x, 10))
+  if (!a || !m || !d || m < 1 || m > 12) return iso
+  return `${d} de ${MESES[m - 1]} de ${a}`
+}
+
 function orgaoTribunal(orgao: string | null, sigla: string | null): string {
   const o = (orgao ?? '').trim()
   const s = (sigla ?? '').trim()
@@ -248,76 +294,101 @@ function orgaoTribunal(orgao: string | null, sigla: string | null): string {
   return o || s || '—'
 }
 
-/** Cabeçalho do cartão: "[polo ativo] v. [polo passivo]"; se faltar um, usa o nº do processo. */
-function cabecalhoCartao(it: ItemNotificar): string {
-  const a = (it.polo_ativo ?? '').trim()
-  const p = (it.polo_passivo ?? '').trim()
-  if (a && p) return `${a} v. ${p}`
-  return it.numero_processo || it.numero_cnj || '—'
-}
-
-function linhaCampo(rotulo: string, valor: string): string {
+function linhaMeta(rotulo: string, valor: string): string {
   return (
     `<tr>` +
-    `<td style="padding:2px 0;font-size:11px;color:${COR.texto2};text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;width:130px;">${esc(rotulo)}</td>` +
-    `<td style="padding:2px 0 2px 10px;font-size:14px;color:${COR.texto};vertical-align:top;">${esc(valor)}</td>` +
+    `<td style="padding:5px 0;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:${C.texto3};vertical-align:top;width:150px;">${esc(rotulo)}</td>` +
+    `<td style="padding:5px 0;font-size:14px;line-height:1.5;color:${C.texto};vertical-align:top;">${esc(valor)}</td>` +
     `</tr>`
   )
 }
 
-function cartao(it: ItemNotificar): string {
-  const botao = it.link_certidao
-    ? `<div style="margin-top:12px;">` +
-      `<a href="${esc(it.link_certidao)}" target="_blank" ` +
-      `style="display:inline-block;background:${COR.vermelho};color:#ffffff;text-decoration:none;` +
-      `font-size:13px;font-weight:600;padding:9px 16px;border-radius:6px;">Abrir certidão</a></div>`
+/** Um bloco por intimação, separado por filete fino (visual de lista, não de cartão). */
+function blocoIntimacao(it: ItemNotificar, primeiro: boolean): string {
+  const ativo = (it.polo_ativo ?? '').trim()
+  const passivo = (it.polo_passivo ?? '').trim()
+  const numero = it.numero_processo || it.numero_cnj || '—'
+  const temPartes = Boolean(ativo && passivo)
+
+  // Cabeçalho: "[ativo] v. [passivo]"; se faltar um polo, usa o número do processo.
+  const cabecalho = temPartes
+    ? `${esc(ativo)} <span style="color:${C.texto3};font-weight:400;font-style:italic;">v.</span> ${esc(passivo)}`
+    : esc(numero)
+  const subnumero = temPartes
+    ? `<div style="font-size:12px;color:${C.texto3};margin-top:5px;letter-spacing:.2px;">Processo nº ${esc(numero)}</div>`
     : ''
 
+  const teor = (it.teor ?? '').trim()
+  const teorHtml = teor
+    ? escMultilinha(teor)
+    : `<span style="color:${C.texto3};font-style:italic;">Inteiro teor não disponível para esta comunicação.</span>`
+
+  const certidao = it.link_certidao
+    ? `<div style="margin-top:18px;">` +
+      `<a href="${esc(it.link_certidao)}" target="_blank" ` +
+      `style="display:inline-block;font-size:13px;font-weight:700;letter-spacing:.2px;color:${C.vermelho};` +
+      `text-decoration:none;border:1px solid ${C.vermelho};border-radius:6px;padding:9px 18px;">Abrir certidão &#8594;</a></div>`
+    : ''
+
+  const topo = primeiro ? '' : `border-top:1px solid ${C.bordaClara};`
+
   return (
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" ` +
-    `style="border-collapse:separate;margin:0 0 14px 0;background:${COR.base};` +
-    `border:1px solid ${COR.borda};border-left:4px solid ${COR.vermelho};border-radius:8px;">` +
-    `<tr><td style="padding:16px 18px;">` +
-    `<div style="font-size:15px;font-weight:700;color:${COR.vermelho};margin:0 0 10px 0;">${esc(cabecalhoCartao(it))}</div>` +
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">` +
-    linhaCampo('Processo', it.numero_processo || it.numero_cnj || '—') +
-    linhaCampo('Órgão/Tribunal', orgaoTribunal(it.nome_orgao, it.sigla_tribunal)) +
-    linhaCampo('Tipo', it.tipo_comunicacao || '—') +
-    linhaCampo('Disponibilização', dataLongaBR(it.data_disponibilizacao)) +
+    `<tr><td class="px" style="padding:28px 40px;${topo}">` +
+    `<div style="font-family:${SERIF};font-size:19px;line-height:1.35;font-weight:700;color:${C.texto};">${cabecalho}</div>` +
+    subnumero +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;">` +
+    linhaMeta('Órgão / Tribunal', orgaoTribunal(it.nome_orgao, it.sigla_tribunal)) +
+    linhaMeta('Disponibilização', dataLongaBR(it.data_disponibilizacao)) +
     `</table>` +
-    botao +
-    `</td></tr></table>`
+    `<div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:${C.texto3};font-weight:700;margin:22px 0 8px 0;">Inteiro teor</div>` +
+    `<div style="font-size:13.5px;line-height:1.75;color:${C.texto2};background:${C.teorBg};` +
+    `border:1px solid ${C.bordaClara};border-left:3px solid ${C.vermelho};border-radius:6px;padding:16px 18px;">${teorHtml}</div>` +
+    certidao +
+    `</td></tr>`
   )
 }
 
-function montarEmail(area: Area, dataCurtaBR: string, itens: ItemNotificar[]): string {
-  const titulo = `Intimações ${AREA_LABEL[area]} — ${dataCurtaBR}`
+function montarEmail(area: Area, dataISO: string, itens: ItemNotificar[]): string {
+  const extenso = dataPorExtenso(dataISO)
+  const subinfo =
+    itens.length > 0
+      ? `${extenso} &nbsp;·&nbsp; ${itens.length} nova${itens.length > 1 ? 's' : ''} intimaç${itens.length > 1 ? 'ões' : 'ão'}`
+      : extenso
+
   const corpo =
     itens.length > 0
-      ? itens.map(cartao).join('')
-      : `<p style="margin:0;font-size:14px;color:${COR.texto2};">Não há novas intimações ${esc(
-          AREA_LABEL[area].toLowerCase(),
-        )} hoje.</p>`
+      ? itens.map((it, idx) => blocoIntimacao(it, idx === 0)).join('')
+      : `<tr><td class="px" style="padding:32px 40px;">` +
+        `<div style="font-size:14px;line-height:1.6;color:${C.texto2};">Não há novas intimações ${esc(
+          AREA_ADJ[area],
+        )} hoje.</div></td></tr>`
 
   return (
     `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">` +
-    `<meta name="viewport" content="width=device-width, initial-scale=1"></head>` +
-    `<body style="margin:0;padding:0;background:${COR.superficie};">` +
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${COR.superficie};">` +
-    `<tr><td align="center" style="padding:24px 12px;">` +
-    `<table role="presentation" width="640" cellpadding="0" cellspacing="0" ` +
-    `style="width:100%;max-width:640px;font-family:'Inter',Arial,Helvetica,sans-serif;">` +
-    // Título (barra de acento na paleta)
-    `<tr><td style="border-top:3px solid ${COR.vermelho};background:${COR.base};` +
-    `border-radius:8px 8px 0 0;padding:18px 18px 14px 18px;">` +
-    `<div style="font-size:17px;font-weight:700;color:${COR.texto};">${esc(titulo)}</div>` +
+    `<meta name="viewport" content="width=device-width,initial-scale=1">` +
+    `<meta name="color-scheme" content="light only">` +
+    `<style>@media (max-width:620px){.container{width:100%!important;border-radius:0!important;}.px{padding-left:22px!important;padding-right:22px!important;}}</style>` +
+    `</head>` +
+    `<body style="margin:0;padding:0;background:${C.superficie};-webkit-font-smoothing:antialiased;">` +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.superficie};">` +
+    `<tr><td align="center" style="padding:36px 12px;">` +
+    `<table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" ` +
+    `style="width:600px;max-width:600px;background:${C.base};border:1px solid ${C.borda};border-radius:12px;overflow:hidden;font-family:${SANS};">` +
+    // filete de acento no topo
+    `<tr><td style="height:3px;line-height:3px;font-size:0;background:${C.vermelho};">&nbsp;</td></tr>` +
+    // cabeçalho
+    `<tr><td class="px" style="padding:30px 40px 22px 40px;border-bottom:1px solid ${C.bordaClara};">` +
+    `<div style="font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:${C.texto3};font-weight:700;">CIAS &nbsp;·&nbsp; Controle de intimações</div>` +
+    `<div style="font-family:${SERIF};font-size:23px;line-height:1.25;color:${C.texto};font-weight:700;margin-top:10px;">Intimações ${esc(AREA_ADJ[area])}</div>` +
+    `<div style="font-size:13px;color:${C.texto2};margin-top:6px;">${subinfo}</div>` +
     `</td></tr>` +
-    // Corpo
-    `<tr><td style="background:${COR.superficie};padding:18px 18px 6px 18px;">${corpo}</td></tr>` +
-    // Rodapé
-    `<tr><td style="padding:8px 18px 0 18px;">` +
-    `<p style="margin:0;font-size:11px;color:${COR.texto2};line-height:1.5;">` +
-    `Mensagem automática do sistema de controle de intimações do CIAS.</p>` +
+    // corpo
+    corpo +
+    // rodapé
+    `<tr><td class="px" style="padding:20px 40px 24px 40px;border-top:1px solid ${C.bordaClara};background:${C.teorBg};">` +
+    `<div style="font-size:11px;line-height:1.6;color:${C.texto3};">Mensagem automática do sistema de controle de intimações do CIAS — perfil ${esc(
+      AREA_LABEL[area],
+    )}. Não é necessário responder.</div>` +
     `</td></tr>` +
     `</table></td></tr></table></body></html>`
   )

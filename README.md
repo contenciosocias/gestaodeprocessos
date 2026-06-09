@@ -191,17 +191,17 @@ aos responsáveis — com as novas intimações da área ou avisando que não h�
 supabase functions deploy disparo-diario
 ```
 
-**c) Agende o cron (uma vez, no SQL Editor).** Habilita as extensões e cria um job **de hora em
-hora** (minuto 0); a própria função decide se é a hora certa (assim, mudar a hora em Configurações
-**não** exige remexer no cron). Troque `SEU_PROJECT_REF` e `SUA_ANON_KEY`:
+**c) Agende o cron (uma vez, no SQL Editor).** Habilita as extensões e cria um job que roda
+**a cada 5 minutos**; a própria função decide se é a hora certa — hora **e minuto** (assim, mudar
+o horário em Configurações **não** exige remexer no cron). Troque `SEU_PROJECT_REF` e `SUA_ANON_KEY`:
 
 ```sql
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
 select cron.schedule(
-  'disparo-diario-horario',
-  '0 * * * *',
+  'disparo-diario',
+  '*/5 * * * *',
   $$
   select net.http_post(
     url     := 'https://SEU_PROJECT_REF.supabase.co/functions/v1/disparo-diario',
@@ -215,7 +215,9 @@ select cron.schedule(
 );
 ```
 
-> Para conferir/limpar: `select * from cron.job;` e `select cron.unschedule('disparo-diario-horario');`.
+> A **hora do disparo** é configurada em formato `HH:MM` (Configurações → Disparo de intimações);
+> o job de 5 em 5 minutos dispara no primeiro tick dentro da janela do horário escolhido (uma vez ao dia).
+> Para conferir/limpar: `select * from cron.job;` e `select cron.unschedule('disparo-diario');`.
 > Para testar **fora da hora**, invoque a função com `{ "forcar": true }` no corpo (pula a guarda
 > de horário; ainda envia de verdade e marca as intimações).
 
