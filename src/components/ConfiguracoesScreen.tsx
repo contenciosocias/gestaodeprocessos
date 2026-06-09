@@ -261,6 +261,10 @@ function DisparoBlock() {
   const [salvando, setSalvando] = useState(false)
   const [ok, setOk] = useState(false)
   const [dests, setDests] = useState<DestinatarioDisparo[]>([])
+  const [novoEmail, setNovoEmail] = useState('')
+  const [novaArea, setNovaArea] = useState<Perfil>('civel')
+  const [addSalvando, setAddSalvando] = useState(false)
+  const [addErro, setAddErro] = useState<string | null>(null)
 
   useEffect(() => {
     getAppConfig()
@@ -311,6 +315,24 @@ function DisparoBlock() {
     recarregarDest()
   }
 
+  async function adicionarDest() {
+    const email = novoEmail.trim()
+    setAddErro(null)
+    if (!/.+@.+\..+/.test(email)) {
+      setAddErro('Informe um e-mail válido.')
+      return
+    }
+    setAddSalvando(true)
+    try {
+      await adicionarEmail(novaArea, email)
+      setNovoEmail('')
+    } catch (e) {
+      setAddErro(String((e as Error)?.message ?? e))
+    } finally {
+      setAddSalvando(false)
+    }
+  }
+
   return (
     <section className="rounded-xl border border-cias-borda bg-cias-base p-5 shadow-sm">
       <h2 className="text-base font-semibold text-cias-texto">Disparo de intimações</h2>
@@ -350,104 +372,75 @@ function DisparoBlock() {
             {ok && <span className="pb-2 text-sm text-cias-sucesso">Salvo.</span>}
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <ListaEmails
-              titulo="Destinatários — Cível"
-              emails={dests.filter((d) => d.area === 'civel')}
-              onAdd={(email) => adicionarEmail('civel', email)}
-              onRemove={removerEmail}
-            />
-            <ListaEmails
-              titulo="Destinatários — Trabalhista"
-              emails={dests.filter((d) => d.area === 'trabalhista')}
-              onAdd={(email) => adicionarEmail('trabalhista', email)}
-              onRemove={removerEmail}
-            />
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-cias-texto2">Destinatários</h3>
+            {/* Adicionar: e-mail + área + Adicionar (mesmo padrão do bloco de OABs) */}
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="min-w-[14rem] flex-1">
+                <span className="mb-1 block text-xs font-medium text-cias-texto2">E-mail</span>
+                <input
+                  type="email"
+                  value={novoEmail}
+                  onChange={(e) => setNovoEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !addSalvando && novoEmail.trim() && adicionarDest()}
+                  placeholder="email@exemplo.com"
+                  className="w-full rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"
+                />
+              </label>
+              <label className="w-44">
+                <span className="mb-1 block text-xs font-medium text-cias-texto2">Área</span>
+                <select
+                  value={novaArea}
+                  onChange={(e) => setNovaArea(e.target.value as Perfil)}
+                  className="w-full rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"
+                >
+                  <option value="civel">Cível</option>
+                  <option value="trabalhista">Trabalhista</option>
+                </select>
+              </label>
+              <button
+                onClick={adicionarDest}
+                disabled={addSalvando || novoEmail.trim() === ''}
+                className="inline-flex items-center gap-2 rounded-lg bg-cias-vermelho px-4 py-2 text-sm font-semibold text-cias-base transition hover:bg-cias-vermelho/90 disabled:opacity-50"
+              >
+                {addSalvando ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Adicionar
+              </button>
+            </div>
+            {addErro && <p className="mt-2 text-xs text-cias-vermelho">{addErro}</p>}
+
+            {/* Lista única: e-mail + área */}
+            <div className="mt-4">
+              {dests.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-cias-borda px-4 py-3 text-sm text-cias-texto2">
+                  Nenhum destinatário cadastrado.
+                </p>
+              ) : (
+                <ul className="divide-y divide-cias-borda rounded-lg border border-cias-borda">
+                  {dests.map((d) => (
+                    <li key={d.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="truncate text-cias-texto">{d.email}</span>
+                        <span className="shrink-0 rounded-md bg-cias-superficie2 px-2 py-0.5 text-xs font-medium text-cias-texto2 ring-1 ring-inset ring-cias-borda">
+                          {d.area === 'civel' ? 'Cível' : 'Trabalhista'}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => removerEmail(d.id)}
+                        className="shrink-0 rounded-md p-1.5 text-cias-texto2 transition hover:bg-cias-superficie2 hover:text-cias-vermelho"
+                        title="Remover"
+                        aria-label="Remover destinatário"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
       )}
     </section>
-  )
-}
-
-function ListaEmails({
-  titulo,
-  emails,
-  onAdd,
-  onRemove,
-}: {
-  titulo: string
-  emails: DestinatarioDisparo[]
-  onAdd: (email: string) => Promise<void>
-  onRemove: (id: string) => Promise<void>
-}) {
-  const [novo, setNovo] = useState('')
-  const [salvando, setSalvando] = useState(false)
-  const [erro, setErro] = useState<string | null>(null)
-
-  async function adicionar() {
-    const email = novo.trim()
-    setErro(null)
-    if (!/.+@.+\..+/.test(email)) {
-      setErro('Informe um e-mail válido.')
-      return
-    }
-    setSalvando(true)
-    try {
-      await onAdd(email)
-      setNovo('')
-    } catch (e) {
-      setErro(String((e as Error)?.message ?? e))
-    } finally {
-      setSalvando(false)
-    }
-  }
-
-  return (
-    <div className="rounded-lg border border-cias-borda p-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-cias-texto2">{titulo}</h3>
-      <div className="mt-2 flex items-center gap-2">
-        <input
-          value={novo}
-          onChange={(e) => setNovo(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && !salvando && novo.trim() && adicionar()}
-          placeholder="email@exemplo.com"
-          className="min-w-0 flex-1 rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"
-        />
-        <button
-          onClick={adicionar}
-          disabled={salvando || novo.trim() === ''}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-cias-borda px-3 py-2 text-sm font-medium text-cias-texto transition hover:bg-cias-superficie2 disabled:opacity-50"
-        >
-          {salvando ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} Adicionar
-        </button>
-      </div>
-      {erro && <p className="mt-1 text-xs text-cias-vermelho">{erro}</p>}
-
-      <div className="mt-3">
-        {emails.length === 0 ? (
-          <p className="rounded-md border border-dashed border-cias-borda px-3 py-2 text-xs text-cias-texto2">
-            Nenhum e-mail cadastrado.
-          </p>
-        ) : (
-          <ul className="divide-y divide-cias-borda rounded-md border border-cias-borda">
-            {emails.map((d) => (
-              <li key={d.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-                <span className="min-w-0 truncate text-cias-texto">{d.email}</span>
-                <button
-                  onClick={() => onRemove(d.id)}
-                  className="shrink-0 rounded-md p-1.5 text-cias-texto2 transition hover:bg-cias-superficie2 hover:text-cias-vermelho"
-                  title="Remover"
-                  aria-label="Remover e-mail"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
   )
 }
 
