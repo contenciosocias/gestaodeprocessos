@@ -85,18 +85,21 @@ export async function getProcesso(id: string): Promise<Processo> {
 }
 
 /** Consulta o Datajud (classe + órgão julgador). Nunca lança: devolve nulos em caso de falha. */
-async function runDatajud(digits: string): Promise<{ classe: string | null; orgao_julgador: string | null }> {
+async function runDatajud(
+  digits: string,
+): Promise<{ classe: string | null; orgao_julgador: string | null; data_ajuizamento: string | null }> {
   try {
     const { data, error } = await supabase.functions.invoke('consulta-datajud', {
       body: { numero_cnj_digits: digits },
     })
-    if (error) return { classe: null, orgao_julgador: null }
+    if (error) return { classe: null, orgao_julgador: null, data_ajuizamento: null }
     return {
       classe: (data?.classe as string) ?? null,
       orgao_julgador: (data?.orgao_julgador as string) ?? null,
+      data_ajuizamento: (data?.data_ajuizamento as string) ?? null,
     }
   } catch {
-    return { classe: null, orgao_julgador: null }
+    return { classe: null, orgao_julgador: null, data_ajuizamento: null }
   }
 }
 
@@ -130,10 +133,10 @@ async function createProcesso(args: {
 
   // Datajud (classe + órgão julgador). Não bloqueia o cadastro se falhar.
   const dj = await runDatajud(args.digits)
-  if (dj.classe || dj.orgao_julgador) {
+  if (dj.classe || dj.orgao_julgador || dj.data_ajuizamento) {
     const { data: upd } = await supabase
       .from('processos')
-      .update({ classe: dj.classe, orgao_julgador: dj.orgao_julgador })
+      .update({ classe: dj.classe, orgao_julgador: dj.orgao_julgador, data_ajuizamento: dj.data_ajuizamento })
       .eq('id', processo.id)
       .select()
       .single()
@@ -160,7 +163,9 @@ export async function createApenso(principal: Processo, numeroCnj: string): Prom
 
 export async function updateProcesso(
   id: string,
-  patch: Partial<Pick<Processo, 'classe' | 'orgao_julgador' | 'posicao_cias' | 'objeto' | 'rotulo' | 'observacao'>>,
+  patch: Partial<
+    Pick<Processo, 'classe' | 'orgao_julgador' | 'data_ajuizamento' | 'posicao_cias' | 'objeto' | 'rotulo' | 'observacao'>
+  >,
 ): Promise<void> {
   const { error } = await supabase.from('processos').update(patch).eq('id', id)
   if (error) throw error

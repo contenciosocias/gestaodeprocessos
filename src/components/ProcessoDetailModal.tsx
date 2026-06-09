@@ -82,6 +82,7 @@ export function ProcessoDetailModal({ processo, onClose, onChanged, onOpenProces
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <CampoTexto rotulo="Classe" valor={proc.classe} onSave={(v) => salvarCampo({ classe: v })} placeholder="(preenchido pelo Datajud ou à mão)" />
             <CampoTexto rotulo="Órgão julgador" valor={proc.orgao_julgador} onSave={(v) => salvarCampo({ orgao_julgador: v })} placeholder="(preenchido pelo Datajud ou à mão)" />
+            <CampoData rotulo="Data de ajuizamento" valor={proc.data_ajuizamento} onSave={(v) => salvarCampo({ data_ajuizamento: v })} />
             <CampoTexto rotulo="Posição do CIAS" valor={proc.posicao_cias} onSave={(v) => salvarCampo({ posicao_cias: v })} placeholder="ex.: réu, agravante…" />
             <CampoTexto rotulo="Rótulo (parte adversa)" valor={proc.rotulo} onSave={(v) => salvarCampo({ rotulo: v })} placeholder="ex.: nome da parte adversa" />
           </div>
@@ -398,6 +399,31 @@ function CampoTexto({
         placeholder={placeholder}
         onBlur={(e) => {
           const v = e.target.value.trim() || null
+          if (v !== (valor ?? null)) onSave(v)
+        }}
+        className="w-full rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"
+      />
+    </label>
+  )
+}
+
+function CampoData({
+  rotulo,
+  valor,
+  onSave,
+}: {
+  rotulo: string
+  valor: string | null
+  onSave: (v: string | null) => void
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs text-cias-texto2">{rotulo}</span>
+      <input
+        type="date"
+        defaultValue={valor ?? ''}
+        onBlur={(e) => {
+          const v = e.target.value || null
           if (v !== (valor ?? null)) onSave(v)
         }}
         className="w-full rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"

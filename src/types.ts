@@ -19,6 +19,7 @@ export interface Processo {
   processo_principal_id: string | null
   classe: string | null
   orgao_julgador: string | null
+  data_ajuizamento: string | null
   posicao_cias: string | null
   objeto: string | null
   rotulo: string | null

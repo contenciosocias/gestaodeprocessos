@@ -38,6 +38,17 @@ function aliasFromCnj(digits: string): string | null {
   return null
 }
 
+// dataAjuizamento vem como "AAAAMMDDHHMMSS" (ex.: "20231127101928"). Extrai a data.
+function parseDataAjuizamento(v: unknown): string | null {
+  const s = String(v ?? '').replace(/\D/g, '')
+  if (s.length < 8) return null
+  const y = Number(s.slice(0, 4))
+  const m = Number(s.slice(4, 6))
+  const d = Number(s.slice(6, 8))
+  if (y < 1900 || m < 1 || m > 12 || d < 1 || d > 31) return null
+  return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`
+}
+
 async function loadConfig(): Promise<{ baseUrl: string; apiKey: string }> {
   let baseUrl = DEFAULTS.datajud_base_url
   let apiKey = DEFAULTS.datajud_api_key
@@ -98,8 +109,9 @@ Deno.serve(async (req) => {
     const source = data?.hits?.hits?.[0]?._source ?? null
     const classe = source?.classe?.nome ?? null
     const orgao_julgador = source?.orgaoJulgador?.nome ?? null
+    const data_ajuizamento = parseDataAjuizamento(source?.dataAjuizamento)
 
-    return jsonResponse({ classe, orgao_julgador, alias, skipped: false })
+    return jsonResponse({ classe, orgao_julgador, data_ajuizamento, alias, skipped: false })
   } catch (e) {
     // Nunca derruba o cadastro.
     return jsonResponse({ classe: null, orgao_julgador: null, skipped: false, erro: String(e) })
