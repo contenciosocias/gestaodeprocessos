@@ -40,10 +40,21 @@ export interface Intimacao {
   destinatario_advogado: string | null
   link_certidao: string | null
   status: StatusIntimacao
-  prazo_fatal: string | null
-  observacao: string | null
   // Quando entrou num disparo diário por e-mail (null = ainda não notificada).
   notificada_em: string | null
+  created_at: string
+  updated_at: string
+}
+
+// Tarefa vinculada 1:1 a uma intimação. "Em aberto" = concluida_em null.
+export interface Tarefa {
+  id: string
+  intimacao_id: string
+  processo_id: string
+  prazo_fatal: string | null
+  responsavel: string | null
+  instrucoes: string | null
+  concluida_em: string | null
   created_at: string
   updated_at: string
 }
@@ -70,6 +81,13 @@ export interface DestinatarioDisparo {
   created_at: string
 }
 
+// Responsável selecionável ao atribuir uma tarefa (cadastrado em Configurações).
+export interface Responsavel {
+  id: string
+  nome: string
+  created_at: string
+}
+
 // Linha (de intimacao) já com dados do processo embutidos, para a lista.
 export interface IntimacaoComProcesso extends Intimacao {
   processo?: {
@@ -78,5 +96,22 @@ export interface IntimacaoComProcesso extends Intimacao {
     classe: string | null
     posicao_cias: string | null
     rotulo: string | null
+  } | null
+  // Tarefa vinculada (1:1), se houver. Só o necessário para decidir o indicador.
+  tarefa?: { id: string; concluida_em: string | null } | null
+}
+
+// Tarefa já com dados do processo e da intimação embutidos, para a aba Tarefas.
+export interface TarefaComContexto extends Tarefa {
+  processo?: {
+    numero_cnj: string
+    perfil: Perfil
+    posicao_cias: string | null
+    rotulo: string | null
+  } | null
+  intimacao?: {
+    tipo_comunicacao: string | null
+    data_disponibilizacao: string | null
+    nome_orgao: string | null
   } | null
 }

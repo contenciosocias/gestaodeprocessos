@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
-import type { DestinatarioDisparo, Oab, Perfil } from '../types'
+import type { DestinatarioDisparo, Oab, Perfil, Responsavel } from '../types'
 import {
   createDestinatario,
   createOab,
+  createResponsavel,
   deleteDestinatario,
   deleteOab,
+  deleteResponsavel,
   getAppConfig,
   listDestinatarios,
   listOabs,
+  listResponsaveis,
   setAppConfig,
   updateOab,
 } from '../lib/api'
@@ -21,8 +24,110 @@ export function ConfiguracoesScreen() {
       </div>
       <OabsBlock />
       <DisparoBlock />
+      <ResponsaveisBlock />
       <ApisBlock />
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Bloco — Responsáveis por tarefas (opções do seletor "Responsável" na Tarefa)
+// ---------------------------------------------------------------------------
+function ResponsaveisBlock() {
+  const [responsaveis, setResponsaveis] = useState<Responsavel[]>([])
+  const [carregando, setCarregando] = useState(true)
+  const [nome, setNome] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  const recarregar = useCallback(() => {
+    setCarregando(true)
+    // Tolera a tabela ainda não migrada (degrada para lista vazia em vez de quebrar).
+    listResponsaveis()
+      .then(setResponsaveis)
+      .catch(() => setResponsaveis([]))
+      .finally(() => setCarregando(false))
+  }, [])
+  useEffect(recarregar, [recarregar])
+
+  async function adicionar() {
+    setErro(null)
+    if (!nome.trim()) {
+      setErro('Informe o nome do responsável.')
+      return
+    }
+    setSalvando(true)
+    try {
+      await createResponsavel({ nome })
+      setNome('')
+      recarregar()
+    } catch (e) {
+      setErro(String((e as Error)?.message ?? e))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  async function remover(id: string) {
+    if (!confirm('Remover este responsável da lista? Tarefas já atribuídas a ele não mudam.')) return
+    try {
+      await deleteResponsavel(id)
+      recarregar()
+    } catch (e) {
+      alert('Não foi possível remover o responsável: ' + String((e as Error)?.message ?? e))
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-cias-borda bg-cias-base p-5 shadow-sm">
+      <h2 className="text-base font-semibold text-cias-texto">Responsáveis por tarefas</h2>
+
+      {/* Adicionar */}
+      <div className="mt-4 flex flex-wrap items-end gap-2">
+        <Campo
+          rotulo="Nome"
+          valor={nome}
+          onChange={setNome}
+          largura="flex-1 min-w-[16rem]"
+          placeholder="Nome do responsável"
+        />
+        <button
+          onClick={adicionar}
+          disabled={salvando}
+          className="inline-flex items-center gap-2 rounded-lg bg-cias-vermelho px-4 py-2 text-sm font-semibold text-cias-base transition hover:bg-cias-vermelho/90 disabled:opacity-50"
+        >
+          {salvando ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Adicionar
+        </button>
+      </div>
+      {erro && <p className="mt-2 text-xs text-cias-vermelho">{erro}</p>}
+
+      {/* Lista */}
+      <div className="mt-4">
+        {carregando ? (
+          <p className="text-sm text-cias-texto2">Carregando…</p>
+        ) : responsaveis.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-cias-borda px-4 py-3 text-sm text-cias-texto2">
+            Nenhum responsável cadastrado.
+          </p>
+        ) : (
+          <ul className="divide-y divide-cias-borda rounded-lg border border-cias-borda">
+            {responsaveis.map((r) => (
+              <li key={r.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                <span className="truncate font-medium text-cias-texto">{r.nome}</span>
+                <button
+                  onClick={() => remover(r.id)}
+                  className="shrink-0 rounded-md p-1.5 text-cias-texto2 transition hover:bg-cias-superficie2 hover:text-cias-vermelho"
+                  title="Remover"
+                  aria-label="Remover responsável"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
   )
 }
 

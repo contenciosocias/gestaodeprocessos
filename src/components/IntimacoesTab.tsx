@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react'
-import { ExternalLink, Loader2, Maximize2, Minimize2 } from 'lucide-react'
-import type { IntimacaoComProcesso, Perfil, StatusIntimacao } from '../types'
+import { Check, ClipboardList, ExternalLink, Loader2, Maximize2, Minimize2, Undo2 } from 'lucide-react'
+import type { IntimacaoComProcesso, Perfil, StatusIntimacao, Tarefa } from '../types'
 import { listIntimacoesByPerfil, updateIntimacao } from '../lib/api'
-import { classificarPrazo, formatDateBR, limparTeor } from '../lib/format'
+import { formatDateBR, limparTeor, partesProcesso } from '../lib/format'
+import { CadastrarTarefaModal } from './CadastrarTarefaModal'
 import { PageHeader } from './PageHeader'
 import { Tag } from './Badge'
 
-const STATUS_OPCOES: StatusIntimacao[] = ['nova', 'lida', 'providenciada']
-const STATUS_LABEL: Record<StatusIntimacao, string> = { nova: 'Nova', lida: 'Lida', providenciada: 'Providenciada' }
+const STATUS_LABEL: Record<StatusIntimacao, string> = { nova: 'Pendente', lida: 'Sem ação', providenciada: 'Resolvida' }
 
-// Cor do seletor de status conforme o valor (acento discreto).
-const STATUS_SELECT_CLASS: Record<StatusIntimacao, string> = {
-  nova: 'text-cias-laranja border-cias-laranja/40',
-  lida: 'text-cias-texto2 border-cias-borda',
-  providenciada: 'text-cias-sucesso border-cias-sucesso/40',
+// Pílula de status (somente leitura): o status é automático, salvo o "Sem ação" manual.
+const STATUS_PILL: Record<StatusIntimacao, string> = {
+  nova: 'text-cias-laranja border-cias-laranja/40 bg-cias-laranja/10',
+  lida: 'text-cias-texto2 border-cias-borda bg-cias-superficie',
+  providenciada: 'text-cias-sucesso border-cias-sucesso/40 bg-cias-sucesso/10',
 }
 
 // Faixa de acento à esquerda do card conforme o status.
@@ -23,21 +23,12 @@ const STATUS_ACCENT: Record<StatusIntimacao, string> = {
   providenciada: 'border-l-cias-sucesso',
 }
 
-type Patch = Partial<Pick<IntimacaoComProcesso, 'status' | 'prazo_fatal' | 'observacao'>>
-
-// Monta "polo ativo v. polo passivo" a partir do polo do CIAS e da parte contrária.
-// Ex.: CIAS ativo + "José" => "CIAS v. José"; CIAS passivo => "José v. CIAS".
-function partesProcesso(posicao: string | null | undefined, rotulo: string | null | undefined): string {
-  const adverso = rotulo?.trim()
-  if (posicao === 'ativo') return adverso ? `CIAS v. ${adverso}` : 'CIAS'
-  if (posicao === 'passivo') return adverso ? `${adverso} v. CIAS` : 'CIAS'
-  return adverso ? `CIAS · ${adverso}` : 'CIAS'
-}
-
 export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refreshSignal: number }) {
   const [intimacoes, setIntimacoes] = useState<IntimacaoComProcesso[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
+  // Intimação cujo modal de cadastro de tarefa está aberto.
+  const [tarefaPara, setTarefaPara] = useState<IntimacaoComProcesso | null>(null)
 
   useEffect(() => {
     let vivo = true
@@ -52,26 +43,30 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
     }
   }, [perfil, refreshSignal])
 
-  // Atualização otimista de um dos 3 campos editáveis.
-  function patchLocal(id: string, patch: Patch) {
+  function patchLocal(id: string, patch: Partial<IntimacaoComProcesso>) {
     setIntimacoes((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)))
   }
 
-  async function salvar(id: string, patch: Patch) {
+  // Marcação manual de status ("Lida" / desfazer p/ "Nova"), com atualização otimista.
+  async function salvarStatus(id: string, status: StatusIntimacao) {
     const anterior = intimacoes.find((i) => i.id === id)
-    patchLocal(id, patch)
+    patchLocal(id, { status })
     try {
-      await updateIntimacao(id, patch)
+      await updateIntimacao(id, { status })
     } catch (e) {
-      if (anterior) patchLocal(id, anterior) // reverte
+      if (anterior) patchLocal(id, anterior)
       alert('Não foi possível salvar a alteração: ' + String((e as Error)?.message ?? e))
     }
   }
 
+  // Tarefa recém-criada: a intimação passa a ter tarefa em aberto e volta a "Nova".
+  function aoCriarTarefa(intimacaoId: string, tarefa: Tarefa) {
+    patchLocal(intimacaoId, { tarefa: { id: tarefa.id, concluida_em: null }, status: 'nova' })
+    setTarefaPara(null)
+  }
+
   // Dois grupos derivados da mesma lista. "Recentes" = status 'nova';
-  // "Tratadas" = 'lida'/'providenciada'. filter() preserva a ordem da API
-  // (mais novo -> mais antigo), então a ordem se mantém dentro de cada grupo.
-  // Como derivam do array único, mudar o status no card reflui o item de grupo.
+  // "Tratadas" = 'lida'/'providenciada'. filter() preserva a ordem da API.
   const recentes = intimacoes.filter((i) => i.status === 'nova')
   const tratadas = intimacoes.filter((i) => i.status !== 'nova')
 
@@ -86,14 +81,29 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
         <EstadoCentral texto="Nenhuma intimação ainda. Cadastre OABs e processos; as intimações aparecem após a sincronização." />
       ) : (
         <div className="space-y-8">
-          <GrupoSecao titulo="Recentes" itens={recentes} onSalvar={salvar} vazio="Nenhuma intimação nova." />
+          <GrupoSecao
+            titulo="Recentes"
+            itens={recentes}
+            onSalvarStatus={salvarStatus}
+            onCadastrarTarefa={setTarefaPara}
+            vazio="Nenhuma intimação pendente."
+          />
           <GrupoSecao
             titulo="Tratadas"
             itens={tratadas}
-            onSalvar={salvar}
-            vazio="Nenhuma intimação tratada (lida ou providenciada)."
+            onSalvarStatus={salvarStatus}
+            onCadastrarTarefa={setTarefaPara}
+            vazio="Nenhuma intimação tratada (sem ação ou resolvida)."
           />
         </div>
+      )}
+
+      {tarefaPara && (
+        <CadastrarTarefaModal
+          intimacao={tarefaPara}
+          onClose={() => setTarefaPara(null)}
+          onCriada={(t) => aoCriarTarefa(tarefaPara.id, t)}
+        />
       )}
     </>
   )
@@ -103,12 +113,14 @@ export function IntimacoesTab({ perfil, refreshSignal }: { perfil: Perfil; refre
 function GrupoSecao({
   titulo,
   itens,
-  onSalvar,
+  onSalvarStatus,
+  onCadastrarTarefa,
   vazio,
 }: {
   titulo: string
   itens: IntimacaoComProcesso[]
-  onSalvar: (id: string, patch: Patch) => void
+  onSalvarStatus: (id: string, status: StatusIntimacao) => void
+  onCadastrarTarefa: (i: IntimacaoComProcesso) => void
   vazio: string
 }) {
   return (
@@ -125,7 +137,12 @@ function GrupoSecao({
       ) : (
         <div className="space-y-3">
           {itens.map((i) => (
-            <IntimacaoCard key={i.id} intimacao={i} onSalvar={onSalvar} />
+            <IntimacaoCard
+              key={i.id}
+              intimacao={i}
+              onSalvarStatus={onSalvarStatus}
+              onCadastrarTarefa={onCadastrarTarefa}
+            />
           ))}
         </div>
       )}
@@ -135,15 +152,18 @@ function GrupoSecao({
 
 function IntimacaoCard({
   intimacao: i,
-  onSalvar,
+  onSalvarStatus,
+  onCadastrarTarefa,
 }: {
   intimacao: IntimacaoComProcesso
-  onSalvar: (id: string, patch: Patch) => void
+  onSalvarStatus: (id: string, status: StatusIntimacao) => void
+  onCadastrarTarefa: (i: IntimacaoComProcesso) => void
 }) {
   const [expandido, setExpandido] = useState(false)
-  const prazo = i.status !== 'providenciada' ? classificarPrazo(i.prazo_fatal) : null
-  const prazoVermelho = prazo === 'vencido' || prazo === 'proximo'
   const teor = limparTeor(i.teor)
+  const temTarefa = !!i.tarefa
+  // "Lida" só faz sentido quando não há tarefa e nada foi providenciado.
+  const podeMarcarLida = !temTarefa && i.status !== 'providenciada'
 
   return (
     <article
@@ -205,61 +225,53 @@ function IntimacaoCard({
         {/* Divisória vertical */}
         <div className="hidden w-px self-stretch bg-cias-borda md:block" />
 
-        {/* Direita: selecionáveis */}
+        {/* Direita: status (somente leitura), tarefa e ações manuais */}
         <div className="space-y-3 md:w-64 md:shrink-0">
-          <ControleCampo label="Status">
-            <select
-              value={i.status}
-              onChange={(e) => onSalvar(i.id, { status: e.target.value as StatusIntimacao })}
-              className={`w-full rounded-md border bg-cias-base px-2 py-1.5 text-sm font-medium ${STATUS_SELECT_CLASS[i.status]}`}
+          <div>
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-cias-texto3">Status</span>
+            <span
+              className={`inline-flex rounded-md border px-2.5 py-1 text-sm font-medium ${STATUS_PILL[i.status]}`}
             >
-              {STATUS_OPCOES.map((s) => (
-                <option key={s} value={s} className="text-cias-texto">
-                  {STATUS_LABEL[s]}
-                </option>
-              ))}
-            </select>
-          </ControleCampo>
+              {STATUS_LABEL[i.status]}
+            </span>
+          </div>
 
-          <ControleCampo label="Prazo fatal">
-            <input
-              type="date"
-              value={i.prazo_fatal ?? ''}
-              onChange={(e) => onSalvar(i.id, { prazo_fatal: e.target.value || null })}
-              className={[
-                'w-full rounded-md border bg-cias-base px-2 py-1.5 text-sm',
-                prazoVermelho
-                  ? 'border-cias-vermelho font-semibold text-cias-vermelho'
-                  : 'border-cias-borda text-cias-texto',
-              ].join(' ')}
-            />
-          </ControleCampo>
+          {/* Tarefa vinculada (uma por intimação). Editar é feito na aba Tarefas. */}
+          {temTarefa ? (
+            <div className="rounded-md border border-cias-borda bg-cias-superficie/50 px-3 py-2 text-xs text-cias-texto2">
+              <span className="font-semibold text-cias-texto">Tarefa já cadastrada</span>
+              {i.tarefa?.concluida_em ? ' · concluída' : ''}
+              <span className="mt-0.5 block text-cias-texto3">Edite na aba Tarefas.</span>
+            </div>
+          ) : (
+            <button
+              onClick={() => onCadastrarTarefa(i)}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-cias-vermelho px-3 py-2 text-sm font-semibold text-white transition hover:bg-cias-vermelhoEscuro"
+            >
+              <ClipboardList size={16} /> Cadastrar tarefa
+            </button>
+          )}
 
-          <ControleCampo label="Observação">
-            <input
-              type="text"
-              key={`obs-${i.id}-${i.observacao ?? ''}`}
-              defaultValue={i.observacao ?? ''}
-              onBlur={(e) => {
-                const v = e.target.value.trim() || null
-                if (v !== (i.observacao ?? null)) onSalvar(i.id, { observacao: v })
-              }}
-              placeholder="—"
-              className="w-full rounded-md border border-cias-borda bg-cias-base px-2 py-1.5 text-sm text-cias-texto"
-            />
-          </ControleCampo>
+          {/* Marcação manual "Sem ação" (única edição manual de status). */}
+          {podeMarcarLida &&
+            (i.status === 'lida' ? (
+              <button
+                onClick={() => onSalvarStatus(i.id, 'nova')}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-cias-borda px-3 py-2 text-sm font-medium text-cias-texto2 transition hover:bg-cias-superficie2 hover:text-cias-texto"
+              >
+                <Undo2 size={15} /> Desfazer “sem ação”
+              </button>
+            ) : (
+              <button
+                onClick={() => onSalvarStatus(i.id, 'lida')}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-cias-borda px-3 py-2 text-sm font-medium text-cias-texto2 transition hover:bg-cias-superficie2 hover:text-cias-texto"
+              >
+                <Check size={15} /> Marcar como sem ação
+              </button>
+            ))}
         </div>
       </div>
     </article>
-  )
-}
-
-function ControleCampo({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-cias-texto3">{label}</span>
-      {children}
-    </label>
   )
 }
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ChevronRight, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Modal } from './Modal'
 import { POLO_TEXT_CLASS, Tag } from './Badge'
-import type { Intimacao, Movimentacao, Processo } from '../types'
+import type { Movimentacao, Processo, TarefaComContexto } from '../types'
 import {
   CnjDuplicadoError,
   createApenso,
@@ -10,7 +10,7 @@ import {
   deleteMovimentacao,
   listApensos,
   listMovimentacoes,
-  listPrazosEmAberto,
+  listTarefasAbertasPorProcesso,
   updateMovimentacao,
   updateProcesso,
 } from '../lib/api'
@@ -32,7 +32,7 @@ export function ProcessoDetailModal({ processo, onClose, onChanged, onOpenProces
   const ehPrincipal = processo.processo_principal_id === null
   const [proc, setProc] = useState<Processo>(processo)
   const [apensos, setApensos] = useState<Processo[]>([])
-  const [prazos, setPrazos] = useState<Intimacao[]>([])
+  const [tarefas, setTarefas] = useState<TarefaComContexto[]>([])
   const [carregando, setCarregando] = useState(true)
 
   useEffect(() => setProc(processo), [processo])
@@ -43,7 +43,7 @@ export function ProcessoDetailModal({ processo, onClose, onChanged, onOpenProces
       const apensosList = ehPrincipal ? await listApensos(processo.id) : []
       setApensos(apensosList)
       const ids = ehPrincipal ? [processo.id, ...apensosList.map((a) => a.id)] : [processo.id]
-      setPrazos(await listPrazosEmAberto(ids))
+      setTarefas(await listTarefasAbertasPorProcesso(ids))
     } finally {
       setCarregando(false)
     }
@@ -110,25 +110,31 @@ export function ProcessoDetailModal({ processo, onClose, onChanged, onOpenProces
           </Secao>
         )}
 
-        {/* 4) Prazos em aberto */}
-        <Secao titulo={ehPrincipal ? 'Prazos em aberto (inclui apensos)' : 'Prazos em aberto'}>
+        {/* 4) Tarefas em aberto */}
+        <Secao titulo={ehPrincipal ? 'Tarefas em aberto (inclui apensos)' : 'Tarefas em aberto'}>
           {carregando ? (
             <Carregando />
-          ) : prazos.length === 0 ? (
-            <Vazio texto="Nenhum prazo em aberto." />
+          ) : tarefas.length === 0 ? (
+            <Vazio texto="Nenhuma tarefa em aberto." />
           ) : (
             <ul className="divide-y divide-cias-borda rounded-lg border border-cias-borda">
-              {prazos.map((p) => {
-                const cls = classificarPrazo(p.prazo_fatal)
+              {tarefas.map((t) => {
+                const cls = classificarPrazo(t.prazo_fatal)
                 const vermelho = cls === 'vencido' || cls === 'proximo'
+                const ref = [t.intimacao?.tipo_comunicacao || 'Intimação', formatDateBR(t.intimacao?.data_disponibilizacao)]
+                  .filter(Boolean)
+                  .join(' · ')
+                const detalhe = [t.responsavel && `Resp.: ${t.responsavel}`, t.instrucoes && trecho(t.instrucoes, 100)]
+                  .filter(Boolean)
+                  .join(' · ')
                 return (
-                  <li key={p.id} className="flex items-start justify-between gap-4 px-4 py-3 text-sm">
+                  <li key={t.id} className="flex items-start justify-between gap-4 px-4 py-3 text-sm">
                     <div>
-                      <div className="text-cias-texto">{p.tipo_comunicacao || 'Intimação'}</div>
-                      <div className="text-xs text-cias-texto2">{trecho(p.teor, 100)}</div>
+                      <div className="text-cias-texto">{ref}</div>
+                      {detalhe && <div className="text-xs text-cias-texto2">{detalhe}</div>}
                     </div>
                     <div className={`whitespace-nowrap text-sm font-semibold ${vermelho ? 'text-cias-vermelho' : 'text-cias-texto'}`}>
-                      {formatDateBR(p.prazo_fatal)}
+                      {formatDateBR(t.prazo_fatal)}
                     </div>
                   </li>
                 )

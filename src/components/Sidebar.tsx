@@ -1,10 +1,10 @@
-import { Inbox, Briefcase, Settings, RefreshCw } from 'lucide-react'
+import { Inbox, ClipboardList, Briefcase, Settings, RefreshCw } from 'lucide-react'
 import type { Perfil } from '../types'
 import { ProfileSelector } from './ProfileSelector'
 import { formatDateBR } from '../lib/format'
 
 type View = 'cases' | 'config'
-type Aba = 'intimacoes' | 'processos'
+type Aba = 'intimacoes' | 'tarefas' | 'processos'
 
 interface SidebarProps {
   view: View
@@ -48,6 +48,12 @@ export function Sidebar({
           label="Intimações"
           active={view === 'cases' && aba === 'intimacoes'}
           onClick={() => onSelectAba('intimacoes')}
+        />
+        <NavItem
+          icon={<ClipboardList size={18} />}
+          label="Tarefas"
+          active={view === 'cases' && aba === 'tarefas'}
+          onClick={() => onSelectAba('tarefas')}
         />
         <NavItem
           icon={<Briefcase size={18} />}

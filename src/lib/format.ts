@@ -8,6 +8,17 @@ export function formatDateBR(iso: string | null | undefined): string {
   return `${d}/${m}/${y}`
 }
 
+/**
+ * Monta "polo ativo v. polo passivo" a partir do polo do CIAS e da parte contrária.
+ * Ex.: CIAS ativo + "José" => "CIAS v. José"; CIAS passivo => "José v. CIAS".
+ */
+export function partesProcesso(posicao: string | null | undefined, rotulo: string | null | undefined): string {
+  const adverso = rotulo?.trim()
+  if (posicao === 'ativo') return adverso ? `CIAS v. ${adverso}` : 'CIAS'
+  if (posicao === 'passivo') return adverso ? `${adverso} v. CIAS` : 'CIAS'
+  return adverso ? `CIAS · ${adverso}` : 'CIAS'
+}
+
 export type PrazoStatus = 'vencido' | 'proximo' | 'ok'
 
 const DIAS_PROXIMO = 3

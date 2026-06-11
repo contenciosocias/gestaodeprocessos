@@ -4,13 +4,15 @@ import { formatCnj, onlyDigits } from './cnj'
 import type {
   AppConfig,
   DestinatarioDisparo,
-  Intimacao,
   IntimacaoComProcesso,
   Movimentacao,
   Oab,
   Perfil,
   Processo,
+  Responsavel,
   StatusIntimacao,
+  Tarefa,
+  TarefaComContexto,
 } from '../types'
 
 const DEZ_MINUTOS_MS = 10 * 60 * 1000
@@ -200,7 +202,9 @@ export async function listIntimacoesByPerfil(perfil: Perfil): Promise<IntimacaoC
   const desde = new Date(Date.now() - JANELA_INTIMACOES_DIAS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const { data, error } = await supabase
     .from('intimacoes')
-    .select('*, processo:processos!inner(numero_cnj, perfil, classe, posicao_cias, rotulo)')
+    .select(
+      '*, processo:processos!inner(numero_cnj, perfil, classe, posicao_cias, rotulo), tarefa:tarefas(id, concluida_em)',
+    )
     .eq('processo.perfil', perfil)
     .gte('data_disponibilizacao', desde)
     .order('data_disponibilizacao', { ascending: false })
@@ -209,12 +213,87 @@ export async function listIntimacoesByPerfil(perfil: Perfil): Promise<IntimacaoC
   return data as unknown as IntimacaoComProcesso[]
 }
 
-export async function updateIntimacao(
-  id: string,
-  patch: Partial<Pick<Intimacao, 'status' | 'prazo_fatal' | 'observacao'>>,
-): Promise<void> {
+/**
+ * Atualiza o status da intimação. Só usado para a marcação MANUAL de "lida"
+ * (e o desfazer, voltando a "nova"); 'providenciada' é governado pela tarefa.
+ */
+export async function updateIntimacao(id: string, patch: { status: StatusIntimacao }): Promise<void> {
   const { error } = await supabase.from('intimacoes').update(patch).eq('id', id)
   if (error) throw error
+}
+
+// ---------------------------------------------------------------------------
+// Tarefas (1:1 com a intimação). O status da intimação segue a tarefa:
+// criar => 'nova'; concluir => 'providenciada'; reabrir => 'nova'.
+// ---------------------------------------------------------------------------
+const TAREFA_CONTEXTO_SELECT =
+  '*, processo:processos!inner(numero_cnj, perfil, posicao_cias, rotulo), intimacao:intimacoes!inner(tipo_comunicacao, data_disponibilizacao, nome_orgao)'
+
+/** Cria a tarefa vinculada à intimação e garante a intimação em "nova" (passou a haver algo pendente). */
+export async function createTarefa(input: {
+  intimacao: { id: string; processo_id: string }
+  prazo_fatal: string | null
+  responsavel: string | null
+  instrucoes: string | null
+}): Promise<Tarefa> {
+  const { data, error } = await supabase
+    .from('tarefas')
+    .insert({
+      intimacao_id: input.intimacao.id,
+      processo_id: input.intimacao.processo_id,
+      prazo_fatal: input.prazo_fatal,
+      responsavel: input.responsavel,
+      instrucoes: input.instrucoes,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  // Se a intimação estava "lida", volta para "nova"; se já era "nova", é inócuo.
+  await supabase.from('intimacoes').update({ status: 'nova' }).eq('id', input.intimacao.id)
+  return data as Tarefa
+}
+
+/** Lista tarefas do perfil, em aberto (por prazo mais próximo) ou concluídas (mais recentes). */
+export async function listTarefas(perfil: Perfil, opts: { concluidas: boolean }): Promise<TarefaComContexto[]> {
+  let q = supabase.from('tarefas').select(TAREFA_CONTEXTO_SELECT).eq('processo.perfil', perfil)
+  q = opts.concluidas
+    ? q.not('concluida_em', 'is', null).order('concluida_em', { ascending: false })
+    : q.is('concluida_em', null).order('prazo_fatal', { ascending: true, nullsFirst: false })
+  const { data, error } = await q
+  if (error) throw error
+  return data as unknown as TarefaComContexto[]
+}
+
+export async function updateTarefa(
+  id: string,
+  patch: Partial<Pick<Tarefa, 'prazo_fatal' | 'responsavel' | 'instrucoes'>>,
+): Promise<void> {
+  const { error } = await supabase.from('tarefas').update(patch).eq('id', id)
+  if (error) throw error
+}
+
+/** Conclui a tarefa e marca a intimação vinculada como "providenciada". */
+export async function concluirTarefa(t: { id: string; intimacao_id: string }): Promise<void> {
+  const { error } = await supabase
+    .from('tarefas')
+    .update({ concluida_em: new Date().toISOString() })
+    .eq('id', t.id)
+  if (error) throw error
+  await supabase.from('intimacoes').update({ status: 'providenciada' }).eq('id', t.intimacao_id)
+}
+
+/** Reabre a tarefa (volta a em aberto) e devolve a intimação para "nova". */
+export async function reabrirTarefa(t: { id: string; intimacao_id: string }): Promise<void> {
+  const { error } = await supabase.from('tarefas').update({ concluida_em: null }).eq('id', t.id)
+  if (error) throw error
+  await supabase.from('intimacoes').update({ status: 'nova' }).eq('id', t.intimacao_id)
+}
+
+/** Exclui a tarefa e devolve a intimação vinculada para "nova" (deixou de haver tarefa). */
+export async function deleteTarefa(t: { id: string; intimacao_id: string }): Promise<void> {
+  const { error } = await supabase.from('tarefas').delete().eq('id', t.id)
+  if (error) throw error
+  await supabase.from('intimacoes').update({ status: 'nova' }).eq('id', t.intimacao_id)
 }
 
 export interface PrazosFatais {
@@ -229,15 +308,15 @@ export interface PrazosFatais {
  * `porPrincipal` agrupa o apenso sob seu principal (um prazo num apenso conta para o
  * principal que o representa na lista). `porProcesso` mantém o prazo no próprio processo,
  * para colorir cada apenso ao expandir.
- * Em aberto = prazo_fatal preenchido e status != 'providenciada'. ISO 'yyyy-mm-dd'.
+ * Em aberto = tarefa com prazo_fatal preenchido e não concluída. ISO 'yyyy-mm-dd'.
  */
 export async function listPrazosFatais(perfil: Perfil): Promise<PrazosFatais> {
   const { data, error } = await supabase
-    .from('intimacoes')
+    .from('tarefas')
     .select('prazo_fatal, processo:processos!inner(id, perfil, processo_principal_id)')
     .eq('processo.perfil', perfil)
     .not('prazo_fatal', 'is', null)
-    .neq('status', 'providenciada')
+    .is('concluida_em', null)
   if (error) throw error
 
   type Linha = { prazo_fatal: string; processo: { id: string; processo_principal_id: string | null } | null }
@@ -257,20 +336,20 @@ export async function listPrazosFatais(perfil: Perfil): Promise<PrazosFatais> {
 }
 
 /**
- * Prazos em aberto: intimações com prazo_fatal preenchido e status != 'providenciada',
- * para o conjunto de processos informado (no principal, passe principal + apensos).
+ * Tarefas em aberto (concluida_em null) para o conjunto de processos informado
+ * (no principal, passe principal + apensos), ordenadas por prazo mais próximo.
+ * Traz a identificação da intimação vinculada para exibição.
  */
-export async function listPrazosEmAberto(processoIds: string[]): Promise<Intimacao[]> {
+export async function listTarefasAbertasPorProcesso(processoIds: string[]): Promise<TarefaComContexto[]> {
   if (processoIds.length === 0) return []
   const { data, error } = await supabase
-    .from('intimacoes')
-    .select('*')
+    .from('tarefas')
+    .select('*, intimacao:intimacoes!inner(tipo_comunicacao, data_disponibilizacao, nome_orgao)')
     .in('processo_id', processoIds)
-    .not('prazo_fatal', 'is', null)
-    .neq('status', 'providenciada')
-    .order('prazo_fatal', { ascending: true })
+    .is('concluida_em', null)
+    .order('prazo_fatal', { ascending: true, nullsFirst: false })
   if (error) throw error
-  return data as Intimacao[]
+  return data as unknown as TarefaComContexto[]
 }
 
 // ---------------------------------------------------------------------------
@@ -349,6 +428,30 @@ export async function createDestinatario(input: { area: Perfil; email: string })
 
 export async function deleteDestinatario(id: string): Promise<void> {
   const { error } = await supabase.from('destinatarios_disparo').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ---------------------------------------------------------------------------
+// Responsáveis (Configurações) — opções selecionáveis ao atribuir uma tarefa.
+// ---------------------------------------------------------------------------
+export async function listResponsaveis(): Promise<Responsavel[]> {
+  const { data, error } = await supabase.from('responsaveis').select('*').order('nome', { ascending: true })
+  if (error) throw error
+  return data as Responsavel[]
+}
+
+export async function createResponsavel(input: { nome: string }): Promise<Responsavel> {
+  const { data, error } = await supabase
+    .from('responsaveis')
+    .insert({ nome: input.nome.trim() })
+    .select()
+    .single()
+  if (error) throw error
+  return data as Responsavel
+}
+
+export async function deleteResponsavel(id: string): Promise<void> {
+  const { error } = await supabase.from('responsaveis').delete().eq('id', id)
   if (error) throw error
 }
 

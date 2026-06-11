@@ -1,12 +1,12 @@
 import type { StatusIntimacao } from '../types'
 
 const STATUS_LABEL: Record<StatusIntimacao, string> = {
-  nova: 'Nova',
-  lida: 'Lida',
-  providenciada: 'Providenciada',
+  nova: 'Pendente',
+  lida: 'Sem ação',
+  providenciada: 'Resolvida',
 }
 
-// Badges de status: Nova = laranja, Lida = cinza, Providenciada = verde discreto.
+// Badges de status: Pendente = laranja, Sem ação = cinza, Resolvida = verde discreto.
 const STATUS_CLASS: Record<StatusIntimacao, string> = {
   nova: 'bg-cias-laranja/12 text-cias-laranja ring-1 ring-inset ring-cias-laranja/25',
   lida: 'bg-cias-superficie2 text-cias-texto2 ring-1 ring-inset ring-cias-borda',

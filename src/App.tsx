@@ -5,11 +5,12 @@ import { isSupabaseConfigured } from './lib/supabase'
 import { getLastSyncAt, maybeSync } from './lib/api'
 import { Sidebar } from './components/Sidebar'
 import { IntimacoesTab } from './components/IntimacoesTab'
+import { TarefasTab } from './components/TarefasTab'
 import { ProcessosTab } from './components/ProcessosTab'
 import { ConfiguracoesScreen } from './components/ConfiguracoesScreen'
 
 type View = 'cases' | 'config'
-type Aba = 'intimacoes' | 'processos'
+type Aba = 'intimacoes' | 'tarefas' | 'processos'
 
 export default function App() {
   // Estado inicial: perfil Cível, aba Intimações.
@@ -72,6 +73,8 @@ export default function App() {
               <ConfiguracoesScreen />
             ) : aba === 'intimacoes' ? (
               <IntimacoesTab perfil={perfil} refreshSignal={refreshSignal} />
+            ) : aba === 'tarefas' ? (
+              <TarefasTab perfil={perfil} refreshSignal={refreshSignal} />
             ) : (
               <ProcessosTab perfil={perfil} />
             )}
