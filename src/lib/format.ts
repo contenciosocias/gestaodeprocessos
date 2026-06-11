@@ -15,15 +15,22 @@ const DIAS_PROXIMO = 3
 /** Classifica um prazo fatal em relação a hoje (vencido / próximo / ok). */
 export function classificarPrazo(iso: string | null | undefined): PrazoStatus | null {
   if (!iso) return null
+  const dias = diasAtePrazo(iso)
+  if (dias === null) return null
+  if (dias < 0) return 'vencido'
+  if (dias <= DIAS_PROXIMO) return 'proximo'
+  return 'ok'
+}
+
+/** Dias inteiros de hoje até o prazo ISO (negativo = vencido). null se inválido/ausente. */
+export function diasAtePrazo(iso: string | null | undefined): number | null {
+  if (!iso) return null
   const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
   if (!y || !m || !d) return null
   const prazo = new Date(y, m - 1, d)
   const hoje = new Date()
   hoje.setHours(0, 0, 0, 0)
-  const diffDias = Math.round((prazo.getTime() - hoje.getTime()) / 86_400_000)
-  if (diffDias < 0) return 'vencido'
-  if (diffDias <= DIAS_PROXIMO) return 'proximo'
-  return 'ok'
+  return Math.round((prazo.getTime() - hoje.getTime()) / 86_400_000)
 }
 
 /** Trecho curto do teor para a lista. */

@@ -1,13 +1,33 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, Loader2, Plus, Trash2 } from 'lucide-react'
 import type { Perfil, Processo } from '../types'
-import { CnjDuplicadoError, createPrincipal, deleteProcesso, listApensos, listPrincipais } from '../lib/api'
+import {
+  CnjDuplicadoError,
+  createPrincipal,
+  deleteProcesso,
+  listApensos,
+  listPrazosFatais,
+  listPrincipais,
+  type PrazosFatais,
+} from '../lib/api'
+import { diasAtePrazo } from '../lib/format'
 import { PoloText } from './Badge'
 import { PageHeader } from './PageHeader'
 import { ProcessoDetailModal } from './ProcessoDetailModal'
 
+// Fundo da linha conforme a urgência do prazo fatal mais próximo (em dias a partir de hoje).
+// >=15 amarelo · 5–14 laranja · <5 (e vencidos) vermelho. null = sem prazo (sem cor).
+function corLinhaPrazo(dias: number | null): string | null {
+  if (dias === null) return null
+  if (dias < 5) return 'bg-red-100/70 hover:bg-red-100'
+  if (dias < 15) return 'bg-orange-100/70 hover:bg-orange-100'
+  return 'bg-yellow-100/70 hover:bg-yellow-100'
+}
+
 export function ProcessosTab({ perfil }: { perfil: Perfil }) {
   const [principais, setPrincipais] = useState<Processo[]>([])
+  // Prazos fatais em aberto: por principal (ordena/colore o principal) e por processo (colore o apenso).
+  const [prazos, setPrazos] = useState<PrazosFatais>({ porPrincipal: {}, porProcesso: {} })
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
 
@@ -23,11 +43,25 @@ export function ProcessosTab({ perfil }: { perfil: Perfil }) {
   const carregarPrincipais = useCallback(() => {
     setCarregando(true)
     setErro(null)
-    listPrincipais(perfil)
-      .then(setPrincipais)
+    Promise.all([listPrincipais(perfil), listPrazosFatais(perfil)])
+      .then(([lista, mapaPrazos]) => {
+        setPrincipais(lista)
+        setPrazos(mapaPrazos)
+      })
       .catch((e) => setErro(String(e?.message ?? e)))
       .finally(() => setCarregando(false))
   }, [perfil])
+
+  // Reordena: processos COM prazo no topo (do prazo mais próximo ao mais longo);
+  // os SEM prazo mantêm a ordem cronológica que vem da API (ajuizamento desc).
+  const ordenados = useMemo(() => {
+    const { porPrincipal } = prazos
+    const comPrazo: Processo[] = []
+    const semPrazo: Processo[] = []
+    for (const p of principais) (porPrincipal[p.id] ? comPrazo : semPrazo).push(p)
+    comPrazo.sort((a, b) => porPrincipal[a.id].localeCompare(porPrincipal[b.id]))
+    return [...comPrazo, ...semPrazo]
+  }, [principais, prazos])
 
   useEffect(() => {
     // Troca de perfil: recarrega e fecha expansões/modal.
@@ -140,7 +174,7 @@ export function ProcessosTab({ perfil }: { perfil: Perfil }) {
               </tr>
             </thead>
             <tbody>
-              {principais.map((p) => {
+              {ordenados.map((p) => {
                 const aberto = expandidos.has(p.id)
                 const filhos = apensos[p.id]
                 return (
@@ -149,6 +183,8 @@ export function ProcessosTab({ perfil }: { perfil: Perfil }) {
                     principal={p}
                     aberto={aberto}
                     filhos={filhos}
+                    dias={diasAtePrazo(prazos.porPrincipal[p.id])}
+                    prazosPorProcesso={prazos.porProcesso}
                     onToggle={() => toggleExpand(p.id)}
                     onAbrir={setProcessoAberto}
                     onExcluir={excluir}
@@ -180,6 +216,8 @@ function FragmentRow({
   principal,
   aberto,
   filhos,
+  dias,
+  prazosPorProcesso,
   onToggle,
   onAbrir,
   onExcluir,
@@ -187,13 +225,20 @@ function FragmentRow({
   principal: Processo
   aberto: boolean
   filhos: Processo[] | undefined
+  dias: number | null
+  prazosPorProcesso: Record<string, string>
   onToggle: () => void
   onAbrir: (p: Processo) => void
   onExcluir: (p: Processo) => void
 }) {
+  // Fechado: cor do grupo (principal + apensos), para destacar/ordenar no topo.
+  // Aberto: só o prazo PRÓPRIO do principal — se a cor vinha apenas de um apenso,
+  // ela "desce" para o apenso e o principal fica sem cor.
+  const diasProprio = diasAtePrazo(prazosPorProcesso[principal.id])
+  const corPrazo = corLinhaPrazo(aberto ? diasProprio : dias)
   return (
     <>
-      <tr className="border-b border-cias-borda/70 hover:bg-cias-superficie/60">
+      <tr className={`border-b border-cias-borda/70 ${corPrazo ?? 'hover:bg-cias-superficie/60'}`}>
         <td className="px-2 py-3 text-center">
           <button
             onClick={onToggle}
@@ -249,9 +294,12 @@ function FragmentRow({
 
       {aberto &&
         filhos &&
-        filhos.map((a) => (
-          // Mesma estrutura de colunas do principal; diferenciado só pelo fundo mais escuro.
-          <tr key={a.id} className="border-b border-cias-borda/70 bg-cias-superficie2 hover:bg-cias-superficie2">
+        filhos.map((a) => {
+          // Apenso com prazo aberto ganha a cor da própria urgência; senão, mantém o fundo
+          // mais escuro que o diferencia do principal.
+          const corApenso = corLinhaPrazo(diasAtePrazo(prazosPorProcesso[a.id]))
+          return (
+          <tr key={a.id} className={`border-b border-cias-borda/70 ${corApenso ?? 'bg-cias-superficie2 hover:bg-cias-superficie2'}`}>
             <td className="px-2 py-3"></td>
             <td className="px-4 py-3 font-medium text-cias-texto">{a.numero_cnj}</td>
             <td className="px-4 py-3 text-cias-texto2">{a.classe || '—'}</td>
@@ -278,7 +326,8 @@ function FragmentRow({
               </div>
             </td>
           </tr>
-        ))}
+          )
+        })}
     </>
   )
 }

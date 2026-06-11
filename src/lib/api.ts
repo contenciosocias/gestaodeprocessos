@@ -217,6 +217,45 @@ export async function updateIntimacao(
   if (error) throw error
 }
 
+export interface PrazosFatais {
+  /** principalId -> prazo aberto mais próximo entre o principal e seus apensos (ordena/colore o principal). */
+  porPrincipal: Record<string, string>
+  /** id do próprio processo -> seu prazo aberto mais próximo (colore a linha de cada apenso). */
+  porProcesso: Record<string, string>
+}
+
+/**
+ * Para a aba de Processos: prazos fatais em aberto por perfil, em dois recortes.
+ * `porPrincipal` agrupa o apenso sob seu principal (um prazo num apenso conta para o
+ * principal que o representa na lista). `porProcesso` mantém o prazo no próprio processo,
+ * para colorir cada apenso ao expandir.
+ * Em aberto = prazo_fatal preenchido e status != 'providenciada'. ISO 'yyyy-mm-dd'.
+ */
+export async function listPrazosFatais(perfil: Perfil): Promise<PrazosFatais> {
+  const { data, error } = await supabase
+    .from('intimacoes')
+    .select('prazo_fatal, processo:processos!inner(id, perfil, processo_principal_id)')
+    .eq('processo.perfil', perfil)
+    .not('prazo_fatal', 'is', null)
+    .neq('status', 'providenciada')
+  if (error) throw error
+
+  type Linha = { prazo_fatal: string; processo: { id: string; processo_principal_id: string | null } | null }
+  const porPrincipal: Record<string, string> = {}
+  const porProcesso: Record<string, string> = {}
+  const menor = (mapa: Record<string, string>, chave: string, prazo: string) => {
+    if (!mapa[chave] || prazo < mapa[chave]) mapa[chave] = prazo
+  }
+  for (const linha of (data ?? []) as unknown as Linha[]) {
+    if (!linha.processo) continue
+    const proc = linha.processo
+    menor(porProcesso, proc.id, linha.prazo_fatal)
+    // Apenso agrupa sob seu principal; principal usa o próprio id.
+    menor(porPrincipal, proc.processo_principal_id ?? proc.id, linha.prazo_fatal)
+  }
+  return { porPrincipal, porProcesso }
+}
+
 /**
  * Prazos em aberto: intimações com prazo_fatal preenchido e status != 'providenciada',
  * para o conjunto de processos informado (no principal, passe principal + apensos).
