@@ -157,8 +157,15 @@ function TarefaCard({
   const titulo = t.processo?.numero_cnj || t.referencia || 'Tarefa avulsa'
   const cabecalho = t.processo ? partesProcesso(t.processo.posicao_cias, t.processo.rotulo) : ''
 
-  async function salvarCampo(patch: Partial<Pick<TarefaComContexto, 'prazo_fatal' | 'responsavel' | 'instrucoes'>>) {
-    const anterior = { prazo_fatal: t.prazo_fatal, responsavel: t.responsavel, instrucoes: t.instrucoes }
+  async function salvarCampo(
+    patch: Partial<Pick<TarefaComContexto, 'prazo_fatal' | 'responsavel' | 'instrucoes' | 'referencia'>>,
+  ) {
+    const anterior = {
+      prazo_fatal: t.prazo_fatal,
+      responsavel: t.responsavel,
+      instrucoes: t.instrucoes,
+      referencia: t.referencia,
+    }
     onPatchLocal(t.id, patch)
     try {
       await updateTarefa(t.id, patch)
@@ -178,7 +185,22 @@ function TarefaCard({
         {/* Esquerda: identificação + instruções */}
         <div className="min-w-0 flex-1 space-y-3">
           <div className="space-y-1">
-            <div className="text-base font-semibold text-cias-texto">{titulo}</div>
+            {/* Tarefa avulsa em aberto: o número/referência é editável aqui. */}
+            {emAberto && !t.processo ? (
+              <input
+                type="text"
+                defaultValue={t.referencia ?? ''}
+                key={`ref-${t.id}`}
+                placeholder="Nº do processo ou referência"
+                onBlur={(e) => {
+                  const v = e.target.value.trim() || null
+                  if (v !== (t.referencia ?? null)) void salvarCampo({ referencia: v })
+                }}
+                className="w-full rounded-md border border-cias-borda bg-cias-base px-2 py-1 text-base font-semibold text-cias-texto"
+              />
+            ) : (
+              <div className="text-base font-semibold text-cias-texto">{titulo}</div>
+            )}
             {cabecalho && <div className="text-sm font-medium text-cias-texto">{cabecalho}</div>}
             {t.intimacao ? (
               <div className="pt-0.5 text-xs text-cias-texto3">

@@ -298,7 +298,7 @@ export async function listTarefas(perfil: Perfil, opts: { concluidas: boolean })
 
 export async function updateTarefa(
   id: string,
-  patch: Partial<Pick<Tarefa, 'prazo_fatal' | 'responsavel' | 'instrucoes'>>,
+  patch: Partial<Pick<Tarefa, 'prazo_fatal' | 'responsavel' | 'instrucoes' | 'referencia'>>,
 ): Promise<void> {
   const { error } = await supabase.from('tarefas').update(patch).eq('id', id)
   if (error) throw error
