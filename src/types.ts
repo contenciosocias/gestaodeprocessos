@@ -46,11 +46,18 @@ export interface Intimacao {
   updated_at: string
 }
 
-// Tarefa vinculada 1:1 a uma intimação. "Em aberto" = concluida_em null.
+// Tarefa. Pode estar vinculada a uma intimação (1:1), apenas a um processo, ou ser
+// avulsa (identificada por `referencia`). "Em aberto" = concluida_em null.
 export interface Tarefa {
   id: string
-  intimacao_id: string
-  processo_id: string
+  // Nulo quando a tarefa não nasceu de uma intimação.
+  intimacao_id: string | null
+  // Nulo quando a tarefa não está vinculada a um processo.
+  processo_id: string | null
+  // Perfil próprio da tarefa (vem do processo quando há um; senão é escolhido na criação).
+  perfil: Perfil
+  // Identificação livre, usada quando não há processo vinculado.
+  referencia: string | null
   prazo_fatal: string | null
   responsavel: string | null
   instrucoes: string | null

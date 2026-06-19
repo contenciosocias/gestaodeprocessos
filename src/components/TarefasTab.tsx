@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, Loader2, RotateCcw, Trash2 } from 'lucide-react'
+import { CheckCircle2, Loader2, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import type { Perfil, TarefaComContexto } from '../types'
 import { concluirTarefa, deleteTarefa, listResponsaveis, listTarefas, reabrirTarefa, updateTarefa } from '../lib/api'
 import { classificarPrazo, formatDateBR, partesProcesso } from '../lib/format'
+import { CadastrarTarefaModal } from './CadastrarTarefaModal'
 import { PageHeader } from './PageHeader'
 
 export function TarefasTab({ perfil, refreshSignal }: { perfil: Perfil; refreshSignal: number }) {
@@ -11,6 +12,8 @@ export function TarefasTab({ perfil, refreshSignal }: { perfil: Perfil; refreshS
   const [opcoesResponsavel, setOpcoesResponsavel] = useState<string[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
+  // Controla a janela de criação de tarefa avulsa.
+  const [criarAberto, setCriarAberto] = useState(false)
 
   // Opções do seletor de responsável (cadastradas em Configurações).
   useEffect(() => {
@@ -35,7 +38,10 @@ export function TarefasTab({ perfil, refreshSignal }: { perfil: Perfil; refreshS
   }
 
   async function concluir(t: TarefaComContexto) {
-    if (!confirm('Concluir esta tarefa? A intimação vinculada passará para "Resolvida".')) return
+    const msg = t.intimacao_id
+      ? 'Concluir esta tarefa? A intimação vinculada passará para "Resolvida".'
+      : 'Concluir esta tarefa?'
+    if (!confirm(msg)) return
     try {
       await concluirTarefa(t)
       carregar() // sai da lista de abertas
@@ -54,7 +60,10 @@ export function TarefasTab({ perfil, refreshSignal }: { perfil: Perfil; refreshS
   }
 
   async function excluir(t: TarefaComContexto) {
-    if (!confirm('Excluir esta tarefa? A intimação vinculada volta para "Pendente". Esta ação é permanente.')) return
+    const msg = t.intimacao_id
+      ? 'Excluir esta tarefa? A intimação vinculada volta para "Pendente". Esta ação é permanente.'
+      : 'Excluir esta tarefa? Esta ação é permanente.'
+    if (!confirm(msg)) return
     try {
       await deleteTarefa(t)
       carregar()
@@ -69,13 +78,21 @@ export function TarefasTab({ perfil, refreshSignal }: { perfil: Perfil; refreshS
         titulo="Tarefas"
         perfil={perfil}
         right={
-          <div className="inline-flex rounded-lg border border-cias-borda bg-cias-base p-0.5 text-sm">
-            <BotaoFiltro ativo={!concluidas} onClick={() => setConcluidas(false)}>
-              Em aberto
-            </BotaoFiltro>
-            <BotaoFiltro ativo={concluidas} onClick={() => setConcluidas(true)}>
-              Concluídas
-            </BotaoFiltro>
+          <div className="flex items-stretch gap-3">
+            <div className="inline-flex rounded-lg border border-cias-borda bg-cias-base p-0.5 text-sm">
+              <BotaoFiltro ativo={!concluidas} onClick={() => setConcluidas(false)}>
+                Em aberto
+              </BotaoFiltro>
+              <BotaoFiltro ativo={concluidas} onClick={() => setConcluidas(true)}>
+                Concluídas
+              </BotaoFiltro>
+            </div>
+            <button
+              onClick={() => setCriarAberto(true)}
+              className="inline-flex items-center gap-2 rounded-lg bg-cias-vermelho px-4 text-sm font-semibold text-white transition hover:bg-cias-vermelhoEscuro"
+            >
+              <Plus size={16} /> Nova tarefa
+            </button>
           </div>
         }
       />
@@ -101,6 +118,18 @@ export function TarefasTab({ perfil, refreshSignal }: { perfil: Perfil; refreshS
           ))}
         </div>
       )}
+
+      {criarAberto && (
+        <CadastrarTarefaModal
+          perfil={perfil}
+          onClose={() => setCriarAberto(false)}
+          onCriada={() => {
+            setCriarAberto(false)
+            setConcluidas(false) // tarefa nova nasce em aberto
+            carregar()
+          }}
+        />
+      )}
     </>
   )
 }
@@ -124,8 +153,9 @@ function TarefaCard({
   const cls = classificarPrazo(t.prazo_fatal)
   const urgente = emAberto && (cls === 'vencido' || cls === 'proximo')
 
-  const numeroProcesso = t.processo?.numero_cnj || '—'
-  const cabecalho = partesProcesso(t.processo?.posicao_cias, t.processo?.rotulo)
+  // Título: nº do processo vinculado; senão a referência livre; senão rótulo padrão.
+  const titulo = t.processo?.numero_cnj || t.referencia || 'Tarefa avulsa'
+  const cabecalho = t.processo ? partesProcesso(t.processo.posicao_cias, t.processo.rotulo) : ''
 
   async function salvarCampo(patch: Partial<Pick<TarefaComContexto, 'prazo_fatal' | 'responsavel' | 'instrucoes'>>) {
     const anterior = { prazo_fatal: t.prazo_fatal, responsavel: t.responsavel, instrucoes: t.instrucoes }
@@ -148,11 +178,15 @@ function TarefaCard({
         {/* Esquerda: identificação + instruções */}
         <div className="min-w-0 flex-1 space-y-3">
           <div className="space-y-1">
-            <div className="text-base font-semibold text-cias-texto">{numeroProcesso}</div>
-            <div className="text-sm font-medium text-cias-texto">{cabecalho}</div>
-            <div className="pt-0.5 text-xs text-cias-texto3">
-              Referente à intimação disponibilizada em {formatDateBR(t.intimacao?.data_disponibilizacao)}
-            </div>
+            <div className="text-base font-semibold text-cias-texto">{titulo}</div>
+            {cabecalho && <div className="text-sm font-medium text-cias-texto">{cabecalho}</div>}
+            {t.intimacao ? (
+              <div className="pt-0.5 text-xs text-cias-texto3">
+                Referente à intimação disponibilizada em {formatDateBR(t.intimacao.data_disponibilizacao)}
+              </div>
+            ) : !t.processo ? (
+              <div className="pt-0.5 text-xs text-cias-texto3">Tarefa avulsa</div>
+            ) : null}
           </div>
 
           <div>

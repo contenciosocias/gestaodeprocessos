@@ -1,24 +1,41 @@
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import type { IntimacaoComProcesso, Responsavel, Tarefa } from '../types'
-import { createTarefa, listResponsaveis } from '../lib/api'
+import type { IntimacaoComProcesso, Perfil, Responsavel, Tarefa } from '../types'
+import { createTarefa, listProcessosParaSelecao, listResponsaveis } from '../lib/api'
+import type { ProcessoOpcao } from '../lib/api'
 import { formatDateBR } from '../lib/format'
 import { Modal } from './Modal'
 
 /**
- * Janela de cadastro da tarefa vinculada a uma intimação (1:1). Abre trazendo, em
- * somente leitura, o processo e a identificação da intimação; edita prazo fatal,
- * responsável e instruções. Ao confirmar, cria a tarefa e devolve em `onCriada`.
+ * Janela de cadastro de tarefa. Funciona em dois modos:
+ *  - a partir de uma intimação (`intimacao`): traz o vínculo em somente leitura;
+ *  - avulsa (`perfil`): permite vincular a um processo existente OU digitar uma
+ *    referência livre, sem depender de intimação.
+ * Em ambos edita prazo fatal, responsável e instruções. Ao confirmar, cria a
+ * tarefa e devolve em `onCriada`.
  */
 export function CadastrarTarefaModal({
   intimacao,
+  perfil,
   onClose,
   onCriada,
 }: {
-  intimacao: IntimacaoComProcesso
+  // Modo "a partir da intimação". Quando ausente, é o modo avulso (usa `perfil`).
+  intimacao?: IntimacaoComProcesso
+  // Perfil da tarefa avulsa (obrigatório quando não há intimação).
+  perfil?: Perfil
   onClose: () => void
   onCriada: (t: Tarefa) => void
 }) {
+  const avulsa = !intimacao
+  // Perfil efetivo: da intimação (via processo) ou o informado no modo avulso.
+  const perfilEfetivo: Perfil = intimacao?.processo?.perfil ?? perfil ?? 'civel'
+
+  const [vincularProcesso, setVincularProcesso] = useState(false)
+  const [processoId, setProcessoId] = useState('')
+  const [referencia, setReferencia] = useState('')
+  const [processosOpcoes, setProcessosOpcoes] = useState<ProcessoOpcao[]>([])
+
   const [prazoFatal, setPrazoFatal] = useState('')
   const [responsavel, setResponsavel] = useState('')
   const [instrucoes, setInstrucoes] = useState('')
@@ -33,21 +50,44 @@ export function CadastrarTarefaModal({
       .catch(() => setResponsaveisOpcoes([]))
   }, [])
 
-  const numeroProcesso = intimacao.numero_processo || intimacao.processo?.numero_cnj || '—'
-  const identificacao = [
-    intimacao.tipo_comunicacao || 'Intimação',
-    formatDateBR(intimacao.data_disponibilizacao),
-    intimacao.nome_orgao,
-  ]
-    .filter(Boolean)
-    .join(' · ')
+  // No modo avulso, carrega os processos do perfil só quando o usuário opta por vincular.
+  useEffect(() => {
+    if (avulsa && vincularProcesso && processosOpcoes.length === 0) {
+      listProcessosParaSelecao(perfilEfetivo)
+        .then(setProcessosOpcoes)
+        .catch(() => setProcessosOpcoes([]))
+    }
+  }, [avulsa, vincularProcesso, perfilEfetivo, processosOpcoes.length])
+
+  const numeroProcesso = intimacao
+    ? intimacao.numero_processo || intimacao.processo?.numero_cnj || '—'
+    : ''
+  const identificacao = intimacao
+    ? [intimacao.tipo_comunicacao || 'Intimação', formatDateBR(intimacao.data_disponibilizacao), intimacao.nome_orgao]
+        .filter(Boolean)
+        .join(' · ')
+    : ''
 
   async function confirmar() {
     setErro(null)
+    // Validações do modo avulso.
+    if (avulsa) {
+      if (vincularProcesso && !processoId) {
+        setErro('Selecione um processo ou desmarque "Vincular a um processo".')
+        return
+      }
+      if (!vincularProcesso && !referencia.trim()) {
+        setErro('Informe uma referência para a tarefa.')
+        return
+      }
+    }
     setSalvando(true)
     try {
       const tarefa = await createTarefa({
-        intimacao: { id: intimacao.id, processo_id: intimacao.processo_id },
+        perfil: perfilEfetivo,
+        intimacao: intimacao ? { id: intimacao.id, processo_id: intimacao.processo_id } : null,
+        processo_id: avulsa && vincularProcesso ? processoId : null,
+        referencia: avulsa && !vincularProcesso ? referencia.trim() : null,
         prazo_fatal: prazoFatal || null,
         responsavel: responsavel.trim() || null,
         instrucoes: instrucoes.trim() || null,
@@ -61,13 +101,64 @@ export function CadastrarTarefaModal({
   }
 
   return (
-    <Modal open onClose={onClose} maxWidth="max-w-lg" title="Cadastrar tarefa">
+    <Modal open onClose={onClose} maxWidth="max-w-lg" title={avulsa ? 'Nova tarefa' : 'Cadastrar tarefa'}>
       <div className="space-y-5">
-        {/* Vínculo (somente leitura) */}
-        <div className="space-y-2 rounded-lg border border-cias-borda bg-cias-superficie/50 px-4 py-3">
-          <CampoLeitura rotulo="Processo" valor={numeroProcesso} />
-          <CampoLeitura rotulo="Intimação vinculada" valor={identificacao} />
-        </div>
+        {intimacao ? (
+          /* Vínculo com a intimação (somente leitura) */
+          <div className="space-y-2 rounded-lg border border-cias-borda bg-cias-superficie/50 px-4 py-3">
+            <CampoLeitura rotulo="Processo" valor={numeroProcesso} />
+            <CampoLeitura rotulo="Intimação vinculada" valor={identificacao} />
+          </div>
+        ) : (
+          /* Modo avulso: vincular a um processo OU referência livre */
+          <div className="space-y-3 rounded-lg border border-cias-borda bg-cias-superficie/50 px-4 py-3">
+            <label className="flex items-center gap-2 text-sm text-cias-texto">
+              <input
+                type="checkbox"
+                checked={vincularProcesso}
+                onChange={(e) => setVincularProcesso(e.target.checked)}
+                className="h-4 w-4 rounded border-cias-borda accent-cias-vermelho"
+              />
+              Vincular a um processo
+            </label>
+
+            {vincularProcesso ? (
+              <div>
+                <select
+                  value={processoId}
+                  onChange={(e) => setProcessoId(e.target.value)}
+                  className="w-full rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"
+                >
+                  <option value="">Selecione um processo…</option>
+                  {processosOpcoes.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.numero_cnj}
+                      {p.rotulo ? ` — ${p.rotulo}` : ''}
+                    </option>
+                  ))}
+                </select>
+                {processosOpcoes.length === 0 && (
+                  <span className="mt-1 block text-xs text-cias-texto3">
+                    Nenhum processo cadastrado neste perfil.
+                  </span>
+                )}
+              </div>
+            ) : (
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-cias-texto3">
+                  Referência
+                </span>
+                <input
+                  type="text"
+                  value={referencia}
+                  onChange={(e) => setReferencia(e.target.value)}
+                  placeholder="Ex.: nº do processo, assunto, demanda interna…"
+                  className="w-full rounded-md border border-cias-borda bg-cias-base px-3 py-2 text-sm text-cias-texto"
+                />
+              </label>
+            )}
+          </div>
+        )}
 
         {/* Campos editáveis */}
         <label className="block">
